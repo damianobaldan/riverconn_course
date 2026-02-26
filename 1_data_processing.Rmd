@@ -30,17 +30,26 @@ knitr::opts_chunk$set(echo = FALSE)
 ## Which packages we will use
 
 -   `sf` for vector data manipulation: sf represents spatial data in a simple, data.frame-like format
+
 -   `terra` for raster data manipulation: it's the successor of the `raster` package and has a lot of useful functions for raster data
--   `dplyr` for data manipulation: helps building pipelines for easy-to-read data manipulation
--   `ggplot2` for data visualization: a bit painful, but easily integrates `sf` and `terra` objects for plotting
+
+-   `dplyr` for data manipulation: helps building pipelines for easy-to-read data manipulation (loaded with the `tidyverse`)
+
+-   `ggplot2` for data visualization: a bit painful, but easily integrates `sf` and `terra` objects for plotting (loaded with the `tidyverse`)
 
 -   `rnaturalearth` for retrieving natural earth data: provides easy access to natural earth vector data (e.g. country borders, etc.)
 
-```{r libraries, echo = TRUE}
+-   `tidyterra` for integrating `terra` objects with the `tidyverse`
+
+## Which packages we will use
+
+```{r libraries, echo = TRUE, message=FALSE, warning=FALSE}
 library(tidyverse)
 library(sf)
 library(terra)
 library(rnaturalearth)
+library(tidyterra)
+library(viridis)
 ```
 
 ## The HydroSHEDS dataset
@@ -53,6 +62,8 @@ library(rnaturalearth)
 
 ## HydroBASINS dataset
 
+We start with [HydroBASINS](https://www.hydrosheds.org/products/hydrobasins) data.
+
 -   Different levels of details (1 to 12) with increasing resolution and number of basins
 -   The dataset can be downloaded as shapefile and has to be processed locally
 -   Here the data are already cropped for the Ebro river basin (Spain) at levels 5 and 10
@@ -60,7 +71,7 @@ library(rnaturalearth)
 
 ## HydroBASINS dataset
 
-```{r hydrosheds read, echo = TRUE}
+```{r hydrobasins read, echo = TRUE}
 hydrosheds_lev5 <- "data/HydroBASINS_sample/sample__hybas_eu_lev05_v1c.shp" %>% 
   sf::st_read() %>% 
   sf::st_make_valid()
@@ -75,42 +86,32 @@ hydrosheds_lev5 <- "data/HydroBASINS_sample/sample__hybas_eu_lev05_v1c.shp" %>%
 
 We check the shapefile:
 
-```{r hydrosheds class, echo = TRUE}
+```{r hydrobasins class, echo = TRUE}
 class(hydrosheds_lev5)
 
 ```
 
 -   It is an object of class `sf`
 -   It is also an object of class `data.frame`: all data.frame functions work :)
+-   Is basically a data.frame with some other attributes and a geometry column
 
 ## HydroBASINS dataset
 
 We check the shapefile content:
 
-```{r hydrosheds head, echo = TRUE}
+```{r hydrobasins head, echo = TRUE}
 head(hydrosheds_lev5)
 
 ```
 
--   Is basically a data.frame with attributes and a geometry column
--   Field HYBAS_ID is the unique identifier of each basin, and SUB_AREA is the area of the basin
+-   Field HYBAS_ID is the unique identifier of each basin
+-   Use HYBAS_ID to filter full dataset to area of interest (in this case, HYBAS_ID == 2050017150, check e.g. with QGIS)
 
 ## HydroBASINS dataset
 
 We plot the shapefile using `ggplot` and color-coding the attribute SUB_AREA:
 
-```{r hydrosheds plot1, echo=TRUE}
-plot <- ggplot() + 
-  geom_sf(data = hydrosheds_lev5, aes(fill = SUB_AREA))
-
-```
-
-
-## HydroBASINS dataset
-
-We plot the shapefile using `ggplot` and color-coding the attribute SUB_AREA:
-
-```{r hydrosheds plot1 setup, echo=TRUE}
+```{r hydrobasins plot1, echo=TRUE}
 plot <- ggplot() + 
   geom_sf(data = hydrosheds_lev5, aes(fill = SUB_AREA))
 
@@ -118,43 +119,55 @@ plot <- ggplot() +
 
 ## HydroBASINS dataset
 
-```{r hydrosheds plot1 plot, echo=FALSE}
+We plot the shapefile using `ggplot` and color-coding the attribute SUB_AREA:
+
+```{r hydrobasins plot1 setup, echo=TRUE}
+plot <- ggplot() + 
+  geom_sf(data = hydrosheds_lev5, aes(fill = SUB_AREA))
+
+```
+
+## HydroBASINS dataset
+
+```{r hydrobasins plot1 plot, echo=FALSE}
 plot
 
 ```
 
 ## HydroBASINS dataset
 
-We try to make the plot a bit nicer.
+We try to make the plot a bit nicer. We use `ne_countries` to retrieve the world shapefile. We use `st_bbox()` to get the bounding box of the shapefile, then we use `st_crop()` to crop the world shapefile to the bounding box.
 
-```{r hydrosheds plot2 setup1, echo=TRUE}
-crs_data <- sf::st_crs(hydrosheds_lev5) 
+```{r hydrobasins plot2 setup1, echo=TRUE, comment = NA}
+crs_data <- hydrosheds_lev5 %>% sf::st_crs() 
 
 world <- rnaturalearth::ne_countries(scale="medium", returnclass="sf") %>%
   sf::st_transform(crs = crs_data ) %>%
   sf::st_as_sf(coords=c("Long", "Lat"), crs = crs_data )
 
-bbox <- sf::st_bbox(hydrosheds_lev5) %>%  
-  st_as_sfc() %>%   
-  st_buffer(1000 * 1000)
+bbox <- hydrosheds_lev5 %>% 
+  sf::st_bbox() %>%  
+  sf::st_as_sfc() %>%   
+  sf::st_buffer(1000 * 1000)
 
-neighbors_cropped <- sf::st_crop(world, bbox) %>% dplyr::select(tlc, geometry)
-
+neighbors_cropped <- world %>% 
+  sf::st_crop(bbox) %>% 
+  dplyr::select(tlc, geometry)
 
 ```
 
 ## HydroBASINS dataset
 
-We try to make the plot a bit nicer. First we add the HydroBASINS shapefile, then we add the background with the countries borders. Note that we set the limits of the plot manually.
+We try to make the plot a bit nicer. First we add the the background with the countries borders, then the HydroBASINS shapefile. Note that we set the limits of the plot manually.
 
-```{r hydrosheds plot2 setup2, echo=TRUE}
+```{r hydrobasins plot2 setup2, echo=TRUE}
 plot <- ggplot() + 
   theme_bw() + 
-  geom_sf(data = hydrosheds_lev5, aes(fill = SUB_AREA)) + 
   geom_sf(data = neighbors_cropped, 
           fill = "gray30", 
           color = "gray80", 
           alpha = 0.5, linewidth = 0.3) + 
+  geom_sf(data = hydrosheds_lev5, aes(fill = SUB_AREA)) + 
   xlim(-10, 10) + 
   ylim(35, 50)
 
@@ -163,25 +176,317 @@ plot <- ggplot() +
 
 ## HydroBASINS dataset
 
-```{r hydrosheds plot2 plot, echo=FALSE}
+```{r hydrobasins plot2 plot, echo=FALSE}
 plot 
 
 ```
 
+## HydroBASINS dataset level 10
+
+Now we move forward and check the level 10, that has higher resolution.
+
+```{r hydrobasins9 read, echo = TRUE}
+hydrosheds_lev10 <- "data/HydroBASINS_sample/sample__hybas_eu_lev10_v1c.shp" %>% 
+  sf::st_read() %>% 
+  sf::st_make_valid()
+
+```
+
+## HydroBASINS dataset level 10
+
+We check the shapefile content:
+
+```{r hydrobasins10 head, echo = TRUE}
+head(hydrosheds_lev10)
+
+```
+
+-   Field HYBAS_ID is the unique identifier of each basin
+-   Use MAIN_BAS to filter full dataset to area of interest (in this case, MAIN_BAS == 2100017150, check with e.g. QGIS)
+
+## HydroBASINS dataset level 10
+
+We plot the shapefile using `ggplot` and color-coding the attribute SUB_AREA. We use scale_fill_viridis() to set the color palette
+
+```{r hydrobasins10 plot1, echo=TRUE}
+plot <- ggplot() + 
+  theme_bw() + 
+  geom_sf(data = neighbors_cropped, 
+          fill = "gray30", 
+          color = "gray80", 
+          alpha = 0.5, linewidth = 0.3) +
+  geom_sf(data = hydrosheds_lev10, aes(fill = SUB_AREA)) + 
+  scale_fill_viridis() + 
+  xlim(-5, 3) + 
+  ylim(40, 44)
+
+```
+
+## HydroBASINS dataset level 10
+
+```{r hydrobasins10 plot1 plot, echo=FALSE}
+plot
+
+```
+
+## Extracting data from raster sources
+
+-   HydroBASINS does not contain much information on the environmental conditions of the basins.
+-   We can add this information with some spatial operations.
+-   For now we focus on elevation and slope.
+-   We download the elevation data using the `elevatr` package, that retrieves elevation data from the [AWS Terrain Tiles dataset](https://registry.opendata.aws/terrain-tiles/).
+
+```{r elevation , echo=TRUE, message=FALSE, warning=FALSE}
+library(elevatr)
+
+elevation <- hydrosheds_lev5 %>% 
+  elevatr::get_elev_raster(z = 8) %>% 
+  terra::rast()
+
+names(elevation) <- "elevation"
+
+```
+
+## Extracting data from raster sources
+
+The downloaded data are in a raster format and we can plot them directly.
+
+```{r elevation plot , echo=TRUE, message=FALSE, warning=FALSE}
+plot(elevation)
+```
+
+## Extracting data from raster sources
+
+We can also produce a plot with ggplot where we superimpose also other informations. Note that `geom_sf` does not have any aestetics, this is because we do not want things to change based on the attributes of the shapefile, but we just want to use it as a background.
+
+```{r elevation plot2 , echo=TRUE, message=FALSE, warning=FALSE}
+plot <- ggplot() + 
+  theme_bw() + 
+  tidyterra::geom_spatraster(data = elevation) + 
+  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) +
+  geom_sf(data = hydrosheds_lev10, fill = NA, color = "gray90", alpha = 0.5) + 
+  scale_fill_viridis(name = "Elevation (m)")
+```
+
+## Extracting data from raster sources
+
+We can also produce a plot with ggplot where we superimpose also other informations.
+
+```{r elevation plot2 plot , echo=FALSE, message=FALSE, warning=FALSE}
+plot 
+```
+
+## Extracting data from raster sources
+
+Based on the elevation data, we use the `terrain` function to calculate the slope and we plot it.
+
+```{r slope plot , echo=TRUE, message=FALSE, warning=FALSE}
+slope <- elevation %>% terra::terrain(v = "slope", unit = "degrees")
+
+names(slope) <- "slope"
+
+plot <- ggplot() + 
+  theme_bw() + 
+  tidyterra::geom_spatraster(data = slope) + 
+  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
+  geom_sf(data = hydrosheds_lev10, fill = NA, color = "gray90", alpha = 0.5) + 
+  scale_fill_viridis(name = "Slope (degrees)")
+```
+
+## Extracting data from raster sources
+
+```{r slope plot plot , echo=FALSE, message=FALSE, warning=FALSE}
+plot 
+```
+
+## Extracting data from raster sources
+
+Now we would like to extract the information on the elevation and the slope and assign to each level 10 subcatchment the related information. We can do this with the `extract` function of the `terra` package, that extracts the values of a raster based on the geometries of a shapefile. Then, the information is added to the shapefile with a simple `mutate` function of `dplyr`. Note that we use the `fun = mean` argument to get the average elevation and slope of each subcatchment.
+
+```{r extract elevation and slope, echo=TRUE, message=FALSE, warning=FALSE}
+
+elevation_extracted <- elevation %>% 
+  terra::extract(hydrosheds_lev10, fun = mean, na.rm = TRUE)
+
+slope_extracted <- slope %>% 
+  terra::extract(hydrosheds_lev10, fun = mean, na.rm = TRUE)
+
+hydrosheds_lev10 <- hydrosheds_lev10 %>% 
+  dplyr::mutate( elevation = elevation_extracted$elevation, 
+                 slope = slope_extracted$slope)
+
+```
+
+## Extracting data from raster sources
+
+Now we can add elevation and slope to the plot.
+
+```{r elevation and slope add to plot, echo=TRUE, message=FALSE, warning=FALSE}
+plot_elev <- ggplot() + 
+  theme_bw() +
+  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
+  geom_sf(data = hydrosheds_lev10, aes(fill = elevation)) + 
+  scale_fill_viridis(name = "Elevation (m)")
+
+plot_slope <- ggplot() + 
+  theme_bw() +
+  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
+  geom_sf(data = hydrosheds_lev10, aes(fill = slope)) + 
+  scale_fill_viridis(name = "Slope (degrees)")
+
+```
+
+## Extracting data from raster sources
+
+```{r elevation plot, echo=FALSE, message=FALSE, warning=FALSE}
+plot_elev
+```
+
+## Extracting data from raster sources
+
+```{r slope plot, echo=FALSE, message=FALSE, warning=FALSE}
+plot_slope
+```
+
+## HydroRIVERS dataset
+
+No we focus on the [HydroRIVERS](https://www.hydrosheds.org/products/hydrorivers) dataset. The data are already cropped for the Ebro river basin (Spain). We see that the structure is similar to that of HydroSHEDS, except here the geometry type is LINESTRING instead of POLYGON.
+
+```{r read hydrorivers, echo=TRUE, message=FALSE, warning=FALSE}
+hydrorivers <- "data/HydroRIVERS_sample/sample__HydroRIVERS_v10_eu.shp" %>% 
+  sf::st_read() %>% 
+  sf::st_make_valid()
+```
+
+## HydroRIVERS dataset
+
+Hydrorivers has several interesting attributes, such as the river order (ORD_STRA), the length of the river (LENGTH_KM), the average upland area (UPLAND_SKM), etc.
+
+```{r check hydrorivers, echo=TRUE, message=FALSE, warning=FALSE}
+head(hydrorivers)
+```
+
+## HydroRIVERS dataset
+
+`ggplot` can be used to plot hydrorivers. Here we color-code the river segments based on the LENGTH_KM field, and transparency-code based on stream order (ORD_STRA).
+
+```{r hydrorivers plot , echo=TRUE, message=FALSE, warning=FALSE}
+plot <- ggplot() + 
+  theme_bw() + 
+  geom_sf(data = hydrosheds_lev5, fill = "white", color = "gray50", alpha = 0.5) +
+  geom_sf(data = hydrorivers, aes(color = LENGTH_KM, alpha = ORD_STRA)) + 
+  scale_color_viridis(name = "Length (km)") + 
+  scale_alpha_continuous(name = "Stream order")
+```
+
+## HydroRIVERS dataset
+
+`ggplot` can be used to plot hydrorivers. Here, we color-code the river segments based on the LENGTH_KM field, and transparency-code based on stream order (ORD_STRA).
+
+```{r hydrorivers plot plot, echo=FALSE, message=FALSE, warning=FALSE}
+plot
+```
+
+## HydroRIVERS dataset
+
+The hydrorivers object is quite dense (~5000 river segments), so the plot is quite busy. In many cases, it might be useful to filter out low-order segments.
 
 
+```{r hydrorivers filter, echo=TRUE, message=FALSE, warning=FALSE}
+nrow(hydrorivers)
 
+hydrorivers_filtered <- hydrorivers %>% 
+  dplyr::filter(ORD_STRA >= 3)
 
+nrow(hydrorivers_filtered)
+```
 
+## HydroRIVERS dataset
 
+```{r hydrorivers filtered plot, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot() + 
+  theme_bw() + 
+  geom_sf(data = hydrosheds_lev5, fill = "white", color = "gray50", alpha = 0.5) +
+  geom_sf(data = hydrorivers_filtered, aes(color = LENGTH_KM, alpha = ORD_STRA)) + 
+  scale_color_viridis(name = "Length (km)") + 
+  scale_alpha_continuous(name = "Stream order")
 
+```
 
+## HydroRIVERS dataset
 
+The elevation and slope raster data can be extracted also for the river segments using the `extract` function as before.The function extracts the raster values underlying each segment and then calculates their mean value.
 
+```{r elevation slope extract hydrorivers, echo=TRUE, message=FALSE, warning=FALSE}
+elevation_extracted <- elevation %>% 
+  terra::extract(hydrorivers, fun = mean, na.rm = TRUE)
 
+slope_extracted <- slope %>% 
+  terra::extract(hydrorivers, fun = mean, na.rm = TRUE)
 
+hydrorivers <- hydrorivers %>% 
+  dplyr::mutate( elevation = elevation_extracted$elevation, 
+                 slope = slope_extracted$slope)
+```
 
+## HydroRIVERS dataset
 
+The extracted values can be plotted. Not that now the scale_color_viridis is used to color-code the river segments based on the elevation and slope values.
+
+```{r elevation slope hydrorivers plot, echo=TRUE, message=FALSE, warning=FALSE}
+plot_elev <- ggplot() + 
+  theme_bw() +
+  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
+  geom_sf(data = hydrorivers, aes(color = elevation)) + 
+  scale_color_viridis(name = "Elevation (m)")
+
+plot_slope <- ggplot() + 
+  theme_bw() +
+  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
+  geom_sf(data = hydrorivers, aes(color = slope)) + 
+  scale_color_viridis(name = "Slope (degrees)")
+```
+
+## HydroRIVERS dataset
+
+```{r elevation hydrorivers plot plot , echo=FALSE, message=FALSE, warning=FALSE}
+plot_elev
+```
+
+## HydroRIVERS dataset
+
+```{r slope hydrorivers plot plot , echo=FALSE, message=FALSE, warning=FALSE}
+plot_slope
+```
+
+## HydroATLAS dataset
+
+Finally, we load the [HydroATLAS](https://www.hydrosheds.org/hydroatlas) dataset, that contains a collection of attributes for river basins, including physical, climatic, and anthropogenic characteristics. The dataset contains both data aggregated at the subbasin level and data aggregated for river segments. The data are already cropped for the Ebro river basin.
+
+To retain the data for the Ebro catchment:
+
+-   For BasinATLAS, the original data can be filtered based on the fields MAIN_BAS == 2100017150 (check in e.g. QGIS)
+-   For RiverATLAS, the original data can be filtered based on the field MAIN_RIV == 20598415 (check in e.g. QGIS)
+
+## HydroATLAS dataset
+
+RiverATLAS has the same structure of HydroRIVERS, but has more fields. Data from several sources were used to annotate the river shapefile. The sources are listed in the documentation.
+
+```{r read riveratlas , echo=TRUE, message=FALSE, warning=FALSE}
+riveratlas <- "data/HydroATLAS_sample/sample__RiverATLAS_v10_eu.shp" %>% 
+  sf::st_read() %>% 
+  sf::st_make_valid()
+```
+
+## HydroATLAS dataset
+
+BasinATLAS has the same structure of HydroRIVERS, but has more fields. Data from several sources were used to annotate the river shapefile. The sources are listed in the documentation.
+
+```{r read basinatlas , echo=TRUE, message=FALSE, warning=FALSE}
+riveratlas <- "data/HydroATLAS_sample/sample__RiverATLAS_v10_eu.shp" %>% 
+  sf::st_read() %>% 
+  sf::st_make_valid()
+```
 
 
 
