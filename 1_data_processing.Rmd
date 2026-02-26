@@ -468,6 +468,7 @@ To retain the data for the Ebro catchment:
 -   For BasinATLAS, the original data can be filtered based on the fields MAIN_BAS == 2100017150 (check in e.g. QGIS)
 -   For RiverATLAS, the original data can be filtered based on the field MAIN_RIV == 20598415 (check in e.g. QGIS)
 
+
 ## HydroATLAS dataset
 
 RiverATLAS has the same structure of HydroRIVERS, but has more fields. Data from several sources were used to annotate the river shapefile. The sources are listed in the documentation.
@@ -478,15 +479,168 @@ riveratlas <- "data/HydroATLAS_sample/sample__RiverATLAS_v10_eu.shp" %>%
   sf::st_make_valid()
 ```
 
+
 ## HydroATLAS dataset
 
-BasinATLAS has the same structure of HydroRIVERS, but has more fields. Data from several sources were used to annotate the river shapefile. The sources are listed in the documentation.
+BasinATLAS has the same structure of HydroBASINS, but has more fields. Data from several sources were used to annotate the river shapefile. The sources are listed in the documentation.
 
 ```{r read basinatlas , echo=TRUE, message=FALSE, warning=FALSE}
-riveratlas <- "data/HydroATLAS_sample/sample__RiverATLAS_v10_eu.shp" %>% 
+basinatlas <- "data/HydroATLAS_sample/sample__BasinATLAS_v10_lev10.shp" %>% 
   sf::st_read() %>% 
   sf::st_make_valid()
 ```
+
+
+## HydroATLAS dataset
+
+Both RiverATLAS and BasinATLAS have a lot of information.
+
+```{r check riveratlas and basinatlas , echo=TRUE, message=FALSE, warning=FALSE}
+names(riveratlas)[1:20]
+names(basinatlas)[1:20]
+```
+
+## HydroATLAS dataset
+
+Digging a bit in the documentation: dis_m3_pyr is the average yearly discharge; for_pc_use is the percentage of forest cover in the upstream area; etc.
+
+```{r discharge riveratlas forest basinatlas plot, echo=TRUE, message=FALSE, warning=FALSE}
+plot_dis <- ggplot() + 
+  theme_bw() +
+  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
+  geom_sf(data = riveratlas, aes(color = log10(dis_m3_pyr))) + 
+  scale_color_viridis(name = "Discharge (m3/year)\nlog10-scale")
+
+plot_forest <- ggplot() + 
+  theme_bw() +
+  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
+  geom_sf(data = riveratlas, aes(color = for_pc_use)) + 
+  scale_color_viridis(name = "Forest cover (%)")
+```
+
+## HydroATLAS dataset
+
+```{r  discharge riveratlas plot, echo=FALSE, message=FALSE, warning=FALSE}
+plot_dis
+```
+
+## HydroATLAS dataset
+
+```{r  forest basinatlas plot, echo=FALSE, message=FALSE, warning=FALSE}
+plot_forest
+```
+
+## Dams in the Ebro
+
+How is this information useful?
+
+-  We load a dataset of dams in the Ebro
+-  We check the characteristics of the subcatchments where dams are located
+
+The dams data is retrieved from the [AMBER](https://amber.international/european-barrier-atlas/) European dataset. There are a lot of barriers, but we consider only dams (`filter` function).
+
+```{r  read dams, echo=FALSE, message=FALSE, warning=FALSE}
+dams_ebro <- "data/dams_ebro/barriers_ebro.shp" %>% 
+  st_read() %>% 
+  dplyr::filter(LblAtls == "DAM")
+```
+
+## Dams in the Ebro
+
+```{r  check dams, echo=TRUE, message=FALSE, warning=FALSE}
+names(dams_ebro)
+```
+
+## Dams in the Ebro
+
+A quick plot to check the distribution of dams in the Ebro basin. We can see that they are quite concentrated in the upper part of the basin, where the elevation is higher.
+
+```{r  plot dams, echo=TRUE, message=FALSE, warning=FALSE}
+plot <- ggplot() + 
+  theme_bw() +
+  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) +
+  geom_sf(data = hydrorivers, aes(alpha = ORD_STRA) ) +
+  geom_sf(data = dams_ebro, color = "black", alpha = 0.5) +
+  scale_alpha_continuous(name = "Stream order")
+
+```
+
+## Dams in the Ebro
+
+```{r  plot dams plot, echo=FALSE, message=FALSE, warning=FALSE}
+plot
+```
+
+## Dams in the Ebro
+
+Next we check the characteristics of the subcatchments where dams are located. We use the function `sf::st_contains()` to check which subcatchments contain the dams. The function returns a list of indices of the dams contained by each subcatchment.
+
+```{r  spatial join dams and basinatlas, echo=TRUE, message=FALSE, warning=FALSE}
+dams_per_basin <- basinatlas %>% 
+  sf::st_contains(dams_ebro)
+
+dams_per_basin[1:20]
+```
+
+## Dams in the Ebro
+
+Based on the dams_basin object, we count how many dams per subcatchment exist and we add this information to the basinatlas shapefile. Few subcatchments have a quite high number of dams.
+
+```{r  count dams inn basinatlas, echo=TRUE, message=FALSE, warning=FALSE}
+basinatlas <- basinatlas %>% 
+  dplyr::mutate(
+    n_dams = sapply(dams_per_basin, length))
+
+plot_hist <- ggplot(basinatlas, aes(x = n_dams)) + 
+  geom_histogram(binwidth = 1) +  theme_bw() + 
+  xlab("Number of dams per subcatchment") + 
+  ylab("Count of subcatchments")
+
+```
+
+## Dams in the Ebro
+
+```{r  plot count dams inn basinatlas, echo=TRUE, message=FALSE, warning=FALSE}
+plot_hist
+```
+
+## Dams in the Ebro
+
+We can explore where the dams are located. For instance we can check if there is a relationship between the number of dams and elevation or slope. 
+
+```{r  dams density relate, echo=TRUE, message=FALSE, warning=FALSE}
+pl_dams <- basinatlas %>% 
+  dplyr::select(n_dams, ele_mt_sav, slp_dg_sav, dis_m3_pyr) %>% 
+  dplyr::filter(n_dams > 0) %>%
+  pivot_longer(
+    cols = c(ele_mt_sav, slp_dg_sav), 
+    names_to = "variable",  values_to = "value") %>%
+  ggplot() + theme_bw() +
+  geom_point(aes(x = value, y = n_dams, color = log10(dis_m3_pyr))) +
+  facet_wrap(~variable, scales = "free") + 
+  scale_color_viridis(name = "Discharge (m3/year)\nlog10-scale")
+```
+
+## Dams in the Ebro
+
+Many dams in high elevation and high slope areas, but also in areas with high discharge. Few big dams at low elevation.
+
+```{r  dams density plot, echo=FALSE, message=FALSE, warning=FALSE}
+pl_dams
+```
+
+# Thank you for listening!
+
+
+
+
+
+
+
+
+
+
+
 
 
 
