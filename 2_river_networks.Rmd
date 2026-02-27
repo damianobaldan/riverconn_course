@@ -6,6 +6,11 @@ date: "`r Sys.Date()`"
 output: 
   ioslides_presentation:
     widescreen: true
+knit: (function(input_file, encoding) {
+  out_dir <- 'docs';
+  rmarkdown::render(input_file,
+ encoding=encoding,
+ output_file=file.path(dirname(input_file), out_dir, '2_river_networks.html'))})
 ---
 
 ```{r setup, include=FALSE}

@@ -6,6 +6,11 @@ date: "`r Sys.Date()`"
 output: 
   ioslides_presentation:
     widescreen: true
+knit: (function(input_file, encoding) {
+  out_dir <- 'docs';
+  rmarkdown::render(input_file,
+ encoding=encoding,
+ output_file=file.path(dirname(input_file), out_dir, '1_data_processing.html'))})
 ---
 
 ```{r setup, include=FALSE}
@@ -70,6 +75,7 @@ We start with [HydroBASINS](https://www.hydrosheds.org/products/hydrobasins) dat
 -   The dataset can be downloaded as shapefile and has to be processed locally
 -   Here the data are already cropped for the Ebro river basin (Spain) at levels 5 and 10
 -   Let's load in the environment the level 5 shapefile and check its content
+-   All the data we will work onare found in the  `data/` folder
 
 ## HydroBASINS dataset
 
