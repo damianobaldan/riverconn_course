@@ -17,7 +17,8 @@ knitr::opts_chunk$set(echo = TRUE)
 # Content
 
 [lecture 1](https://damianobaldan.github.io/riverconn_course/1_data_processing.html)
-[lecture 2](https://damianobaldan.github.io/riverconn_course/2_river_networks.html))
+
+[lecture 2](https://damianobaldan.github.io/riverconn_course/2_river_networks.html)
 
 # some other Content
 
