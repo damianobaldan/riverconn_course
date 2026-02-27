@@ -229,9 +229,299 @@ plot
 ```
 
 
-# Generating river graphs from geographic (river) data
+# The Ebro case study
 
-## Generating river graphs from geographic (river) data
+## The Ebro case study
+
+We load the input data in the environment. We have three shapefiles: one for the river network, one for the river basin and one for the dams. The dams are from a local dataset, that contains also informations on the upstream reservoir.
+
+```{r river data input read, echo = TRUE}
+shape_river <- "data/HydroRIVERS_sample/sample__hydroRIVERS_v10_eu.shp" %>% 
+  st_read(quiet = TRUE)
+shape_basin <- "data/HydroBASINS_sample/sample__hybas_eu_lev10_v1c.shp" %>% 
+  st_read(quiet = TRUE)
+shape_dams <- "data/dams_ebro/embalses.shp" %>% 
+  st_read(quiet = TRUE)
+```
+
+Then, we load the content of the file `functions_network_creation.R`, that contains several useful functions.
+
+```{r utility funs source, echo = TRUE}
+source("functions_network_creation.R")
+```
+
+## The Ebro case study
+
+The river shapefile has a very high resolution. To speed up the analyses, we drop all the river segments that have an upland area greater than 80 km2.
+
+```{r prune river network, echo = TRUE}
+shape_river_small <- shape_river %>% 
+  filter(UPLAND_SKM > 80)
+
+nrow(shape_river)
+nrow(shape_river_small)
+
+```
+
+## The Ebro case study
+
+We convert the dams shapefile from polygons to points (the polygons are the borders of the reservoir).
+
+```{r plot everything, echo = TRUE, message = FALSE}
+dams_to_points <- shape_dams %>%
+  st_as_sf() %>% st_centroid() %>%
+  mutate(id = 1:nrow(.)) %>%  dplyr::select(id) %>% 
+  st_transform(crs = "+proj=longlat +datum=WGS84")
+
+plot <- ggplot() +
+  coord_fixed() +
+  theme_minimal() +
+  ggspatial::layer_spatial(shape_basin, fill = "white", color = "gray90") +
+  ggspatial::layer_spatial(shape_river_small, aes(color = log10(UPLAND_SKM)) )+
+  ggspatial::layer_spatial(dams_to_points) +
+  scale_color_viridis(direction = -1, name= "upstream area \n(log10[Km^2])") +
+  theme(legend.position = "bottom") +
+  labs(caption = "Black dots are the position of the dams")
+
+```
+
+## The Ebro case study
+
+```{r plot everything , echo = FALSE, message = FALSE}
+plot
+```
+
+# Hydrographic data processing
+
+## Hydrographic data processing
+
+The first step before building the graph is to identify confluences. To do this, the river network is split into the smallest segments allowed by its geometry.
+
+```{r identify confluences 1, echo = TRUE, message = FALSE}
+shape_river_simple <- shape_river_small %>%
+  st_as_sf %>%
+  st_union()
+
+river_to_points <- shape_river_simple  %>%
+  st_as_sf() %>%
+  st_cast("POINT") %>%
+  mutate(id = 1:nrow(.))
+
+```
+
+## Hydrographic data processing
+
+Confluences are the points where three or more segments overlap.
+
+```{r identify confluences 2, echo = TRUE, message = FALSE}
+joins_selection <- river_to_points %>%
+  st_equals() %>%
+  Filter(function(x){length(x) > 2}, .) %>%
+  lapply(., FUN = min) %>%
+  unlist() %>%
+  unique()
+
+river_joins <- river_to_points %>% 
+  filter(id %in% joins_selection)
+
+```
+
+## Hydrographic data processing
+
+Finally, the simplified shapefile is split where conferences are.
+
+```{r identify confluences 3, echo = TRUE, message = FALSE}
+shape_river_simplified <- lwgeom::st_split(shape_river_simple, river_joins) %>%
+  st_collection_extract(.,"LINESTRING") %>%
+  data.frame(id = 1:length(.), geometry = .) %>%
+  st_as_sf() %>%
+  mutate(length = st_length(.))
+
+```
+
+## Hydrographic data processing
+
+We plot to make sure everything was succesful.
+
+```{r identify confluences 4, echo = TRUE, message = FALSE}
+plot <- ggplot() +
+  coord_fixed() +
+  ggspatial::layer_spatial(shape_river_simplified, aes(color = id))+
+  scale_color_viridis(direction = -1, name= "Reach ID") +
+  ggspatial::layer_spatial(river_joins, shape = 1)+
+  theme_minimal() +
+  theme(legend.position = "bottom")+
+  labs(caption = "Hollow points are the position of the junctions")
+
+```
+
+## Hydrographic data processing
+
+```{r identify confluences 4 plot, echo = FALSE, message = FALSE}
+plot
+```
+
+
+# Barriers data processing
+
+## Barriers data processing
+
+We use the custom `snap_to_river()` function to overlay dams with the river network.
+
+```{r dams processing 1, echo = TRUE, message = FALSE, warning = FALSE}
+dams_snapped <- snap_to_river(dams_to_points,
+                              shape_river_simple %>% st_sf(),
+                              max_dist = 1000)
+
+dams_snapped_reduced <-
+  dams_snapped[
+    st_contains(shape_river_simple %>% st_sf(), 
+                dams_snapped, prepared = FALSE)[[1]],]
+
+st_distance(dams_snapped_reduced, shape_river_simple) %>% sum
+
+```
+
+## Barriers data processing
+
+If two or more dams are snapped to the same point, they are considered as one dam. This does not work with 
+
+```{r dams processing 2, echo = TRUE, message = FALSE, warning = FALSE}
+dams_snapped_reduced_joined <- dams_snapped_reduced %>%
+  mutate(cluster =
+           st_equals(dams_snapped_reduced, dams_snapped_reduced) %>%
+           sapply(., FUN = function(x) paste0(x, collapse = "_"))) %>%
+  group_by(cluster) %>%
+  slice(1) %>%
+  ungroup() %>%
+  mutate(id_dam = as.character(1:nrow(.)), pass_u = 0.1, pass_d = 0.8) %>%
+  as.data.frame %>%
+  st_as_sf() %>%
+  st_join(., shape_river_small, join = st_is_within_distance, dist = 10 ) %>% 
+  group_by(id) %>%
+  slice(which.max(UPLAND_SKM)) %>% 
+  ungroup()
+
+```
+
+## Barriers data processing
+
+The custom function `headwaters_dam()` is useful for identifying dams that do not have an upstream reach and would not be contributing to fragmentation.
+
+```{r dams processing 3, echo = TRUE, message = FALSE, warning = FALSE}
+headwaters_checking <- headwaters_dam(dams_snapped_reduced_joined, shape_river_simple)
+
+headwaters_checking$flag_headwater %>% sum()
+
+```
+
+
+## Barriers data processing
+
+Now dams can be plotted. 
+
+```{r dams plot, echo = TRUE, message = FALSE, warning = FALSE}
+plot <- ggplot() +
+  coord_fixed() +
+  ggspatial::layer_spatial(shape_river_simple, color = "gray70")+
+  ggspatial::layer_spatial(dams_snapped_reduced, shape = 1) +
+  theme_minimal() +
+  theme(legend.position = "bottom")+
+  ggspatial::annotation_north_arrow(location = "br")+
+  ggspatial::annotation_scale(location = "bl", style = "ticks") +
+  labs(caption = "Hollow points are the position of the dams")
+
+```
+
+## Barriers data processing
+
+```{r dams plot plot, echo = FALSE, message = FALSE, warning = FALSE}
+plot 
+```
+
+# Integrating hydrographic and dams data
+
+## Integrating hydrographic and dams data
+
+The position of confluences and dams are integrated in the same data.frame, that will be used to build the graph. The type of link (confluence or dam) is stored in the column `type`, while the columns `pass_u` and `pass_d` store the passability values for upstream and downstream movement, respectively.
+
+```{r dams confluences info merge, echo = TRUE, message = FALSE, warning = FALSE}
+network_links <- rbind(
+  dams_snapped_reduced_joined %>% 
+    mutate(type = "dam", id_barrier = id_dam) %>%
+    dplyr::select(type, id_barrier, pass_u, pass_d),
+  river_joins %>% mutate(type = "joint") %>%
+    dplyr::select(type) %>%
+    mutate(id_barrier = NA, pass_u = NA, pass_d = NA) %>%
+    rename(geometry = x)) %>%
+  mutate(id_links = 1:nrow(.))
+
+```
+
+## Integrating hydrographic and dams data
+
+Finally, the shapefile is sliced based on confluences and dams positions.
+
+```{r final river shapefile slice, echo = TRUE, message = FALSE, warning = FALSE}
+river_net_simplified <- lwgeom::st_split(shape_river_simple, network_links) %>%
+  st_collection_extract(.,"LINESTRING") %>%
+  data.frame(NodeID = 1:length(.), geometry = .) %>%
+  st_as_sf() %>%
+  mutate(length = st_length(.)) %>%
+  st_join(., shape_river_small, join = st_is_within_distance, dist = 0.01 ) %>% 
+  group_by(NodeID) %>%
+  slice(which.max(UPLAND_SKM)) %>% 
+  ungroup()
+
+```
+
+## Integrating hydrographic and dams data
+
+We check with a plot
+
+```{r final river shapefile sliced plot, echo = TRUE, message = FALSE, warning = FALSE}
+plot <- ggplot() +
+  coord_fixed() +
+  ggspatial::layer_spatial(river_net_simplified, color = "gray70")+
+  ggspatial::layer_spatial(network_links, aes(shape = type))+
+  scale_shape_manual(name = "Splitting points", values=c("dam" =17,"joint" = 23))+
+  theme_minimal() +
+  ggspatial::annotation_scale(location = "bl", style = "ticks")
+
+```
+
+## Integrating hydrographic and dams data
+
+We check with a plot
+
+```{r final river shapefile sliced plot plot, echo = FALSE, message = FALSE, warning = FALSE}
+plot
+```
+
+
+# Troubleshooting
+
+## Troubleshooting
+
+A common issue when generating the river network is when more than three segments are overlapping in a confluence. The custom function `multiple_confluences()` detects such issues. The function returns a shapefile that can be saved and opened in QGIS to find and correct manually the issue.
+
+```{r multiple confluences, echo = TRUE, message = FALSE, warning = FALSE}
+confluences <- multiple_confluences(river_net_simplified)
+sum(confluences$flag_confluence)
+```
+
+## Troubleshooting
+
+A common issue when generating the river network is when more than three segments are overlapping in a confluence. The custom function `multiple_confluences()` detects such issues. The function returns a shapefile that can be saved and opened in QGIS to find and correct manually the issue.
+
+```{r shp check, echo = TRUE, message = FALSE, warning = FALSE}
+shp_check <- check_components(network_links, river_net_simplified)
+head(shp_check)
+```
+
+
+
+
 
 
 
