@@ -503,20 +503,153 @@ plot
 
 ## Troubleshooting
 
-A common issue when generating the river network is when more than three segments are overlapping in a confluence. The custom function `multiple_confluences()` detects such issues. The function returns a shapefile that can be saved and opened in QGIS to find and correct manually the issue.
+A common issue when generating the river network is when more than three segments are overlapping in a confluence. The custom function `multiple_confluences()` returns a shapefile that flags problematic confluences.
 
 ```{r multiple confluences, echo = TRUE, message = FALSE, warning = FALSE}
 confluences <- multiple_confluences(river_net_simplified)
+confluences[1:5,]
 sum(confluences$flag_confluence)
 ```
 
 ## Troubleshooting
 
-A common issue when generating the river network is when more than three segments are overlapping in a confluence. The custom function `multiple_confluences()` detects such issues. The function returns a shapefile that can be saved and opened in QGIS to find and correct manually the issue.
+A common issue when generating the river network is when the shapefile has some gaps. The custom function `multiple_confluences()` returns a shapefile that flags the issue.
 
 ```{r shp check, echo = TRUE, message = FALSE, warning = FALSE}
 shp_check <- check_components(network_links, river_net_simplified)
-head(shp_check)
+shp_check$component %>% table()
+```
+
+We see that there is only one component. This is not surprising because the file was already corrected.
+
+## Troubleshooting
+
+If the function `multiple_confluences()` is used on a native file, many components are found. The shapefile can be plotted to identify where the weird components are located and to correct them (e.g. deleting them or snapping them)
+
+```{r shp check 2, echo = TRUE, message = FALSE, warning = FALSE}
+example_broken <- st_read("data/example_broken_river/example_broken.shp", quiet = TRUE)
+
+shp_check <- check_components(network_links, example_broken)
+shp_check$component %>% table()
+```
+
+## Troubleshooting
+
+We check where the shapefile is broken in a plot.
+
+```{r shp check 3, echo = TRUE, message = FALSE, warning = FALSE}
+plot <- ggplot() +
+  coord_fixed() +
+  ggspatial::layer_spatial(shp_check, aes(color = as.factor(component)))+
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+
+```
+
+## Troubleshooting
+
+```{r shp check 3 plot, echo = FALSE, message = FALSE, warning = FALSE}
+plot 
+```
+
+# Creation of the igraph object
+
+## Creation of the igraph object
+
+We identify the outlet of the river network (the node with the largest upstream area) and we use it as root for building the graph. The custom function `create_network()` builds the graph based on the river shapefile and the position of confluences and dams.
+
+```{r graph create, echo = TRUE, message = FALSE, warning = FALSE}
+outlet <- river_net_simplified$NodeID[river_net_simplified$DIST_DN_KM == 0 ]
+
+river_graph <- create_network(network_links, river_net_simplified, outlet)
+```
+
+## Creation of the igraph object
+
+We check the created igraph object
+
+```{r graph check 1, echo = TRUE, message = FALSE, warning = FALSE}
+river_graph
+```
+
+## Creation of the igraph object
+
+We check the created igraph object
+
+```{r graph check 2, echo = TRUE, message = FALSE, warning = FALSE}
+igraph::get.edge.attribute(river_graph) %>% names
+igraph::get.vertex.attribute(river_graph) %>% names
+```
+
+## Creation of the igraph object
+
+We edit the length attribute of the graph. and we turn the name attribute to character.
+
+```{r graph edit 1, echo = TRUE, message = FALSE, warning = FALSE}
+V(river_graph)$length <- V(river_graph)$length / 10000
+V(river_graph)$name <- as.character(V(river_graph)$name)
+```
+
+
+# Centrality metrics calculation
+
+## Centrality metrics calculation
+
+We calculate betweeness and closeness centrality and store the values as nodes attributes
+
+```{r graph edit 2, echo = TRUE, message = FALSE, warning = FALSE}
+V(river_graph)$btw <- igraph::betweenness(river_graph)
+V(river_graph)$cc_dir <- igraph::closeness(river_graph, mode = "out")
+V(river_graph)$cc <- igraph::closeness(river_graph, mode = "all")
+```
+
+## Centrality metrics calculation
+
+We can plot the centrality metrics. We create a dataframe with all the vertices attributes and join it with the river shapefile for the plotting.
+
+```{r graph plot centrality 1, echo = TRUE, message = FALSE, warning = FALSE}
+
+df_river_graph_v <- igraph::as_data_frame(river_graph, what = "vertices") %>% 
+  dplyr::mutate(NodeID = as.numeric(name)) %>% 
+  dplyr::select(-length)
+
+river_plot <- river_net_simplified %>% 
+  left_join(df_river_graph_v)
+
+plot <- ggplot() +
+    coord_fixed() + theme_void()+
+    ggspatial::layer_spatial(river_plot, aes(color = log10(btw + 1)))+
+    scale_color_viridis(name = "Bewteenness (log10)")+
+    theme(legend.position = "bottom")
+
+```
+
+## Centrality metrics calculation
+
+```{r graph plot centrality 2, echo = FALSE, message = FALSE, warning = FALSE}
+plot
+```
+
+
+## Centrality metrics calculation
+
+```{r  graph plot centrality 4, echo = FALSE, message = FALSE, warning = FALSE}
+ggplot() +
+    coord_fixed() + theme_void()+
+    ggspatial::layer_spatial(river_plot, aes(color = log10(cc + 1)))+
+    scale_color_viridis(name = "Closeness (log10), undirected")+
+    theme(legend.position = "bottom")
+```
+
+## Centrality metrics calculation
+
+```{r  graph plot centrality 5, echo = FALSE, message = FALSE, warning = FALSE}
+ggplot() +
+    coord_fixed() + theme_void()+
+    ggspatial::layer_spatial(river_plot, aes(color = log10(cc_dir + 1)))+
+    scale_color_viridis(name = "Closeness (log10), out")+
+    theme(legend.position = "bottom")
 ```
 
 
@@ -528,12 +661,7 @@ head(shp_check)
 
 
 
-
-
-
-
-
-
+# Thank you for listening!
 
 
 
