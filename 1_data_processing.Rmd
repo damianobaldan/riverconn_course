@@ -1,8 +1,8 @@
 ---
-title: "Geographic data processing with R"
-subtitle: "A practical introduction to data manipulation and visualization"
+title: "Analysis of fragmented river systems"
+subtitle: "Lecture 1: Geographic data processing with R"
 author: "Damiano Baldan"
-date: "2026-02-25"
+date: "`r Sys.Date()`"
 output: 
   ioslides_presentation:
     widescreen: true
@@ -24,7 +24,7 @@ knitr::opts_chunk$set(echo = FALSE)
 
 -   Retrieval of geographic data from various sources (e.g. HydroSHEDS, HydroATLAS, HydroRIVERS)
 -   Processing of geographic data using R packages (e.g. `sf`, `terra`, `dplyr`, etc.)
--   Basic spatial operations (e.g. spatial joins, buffering, etc.)
+-   Basic spatial operations (e.g. spatial joins, etc.)
 -   Visualization of geographic data using R packages (e.g. `ggplot2`, etc.)
 
 ## Which packages we will use
@@ -59,6 +59,8 @@ library(viridis)
 -   Data product [HydroRIVERS](https://www.hydrosheds.org/products/hydrorivers): river network data, including flow direction and flow accumulation
 -   Data product [HydroBASINS](https://www.hydrosheds.org/products/hydrobasins): outlines of river basins at multiple scales (from level 1 to level 12, with increasing detail)
 -   Data product [HydroATLAS](https://www.hydrosheds.org/hydroatlas): a collection of attributes for river basins, including physical, climatic, and anthropogenic characteristics
+
+# The HydroBASINS dataset
 
 ## HydroBASINS dataset
 
@@ -229,6 +231,9 @@ plot
 
 ```
 
+
+# Extracting data from rasters
+
 ## Extracting data from raster sources
 
 -   HydroBASINS does not contain much information on the environmental conditions of the basins.
@@ -348,6 +353,8 @@ plot_elev
 plot_slope
 ```
 
+# The HydroRIVERS dataset
+
 ## HydroRIVERS dataset
 
 No we focus on the [HydroRIVERS](https://www.hydrosheds.org/products/hydrorivers) dataset. The data are already cropped for the Ebro river basin (Spain). We see that the structure is similar to that of HydroSHEDS, except here the geometry type is LINESTRING instead of POLYGON.
@@ -459,6 +466,9 @@ plot_elev
 plot_slope
 ```
 
+
+# The HydroATLAS dataset
+
 ## HydroATLAS dataset
 
 Finally, we load the [HydroATLAS](https://www.hydrosheds.org/hydroatlas) dataset, that contains a collection of attributes for river basins, including physical, climatic, and anthropogenic characteristics. The dataset contains both data aggregated at the subbasin level and data aggregated for river segments. The data are already cropped for the Ebro river basin.
@@ -529,6 +539,11 @@ plot_dis
 ```{r  forest basinatlas plot, echo=FALSE, message=FALSE, warning=FALSE}
 plot_forest
 ```
+
+
+
+
+# An example: Dams distribution in the Ebro basin
 
 ## Dams in the Ebro
 

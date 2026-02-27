@@ -1,8 +1,8 @@
 ---
-title: "Geographic data processing with R"
-subtitle: "A practical introduction to data manipulation and visualization"
+title: "Analysis of fragmented river systems"
+subtitle: "Lecture 2: Generating river graphs"
 author: "Damiano Baldan"
-date: "2026-02-25"
+date: "`r Sys.Date()`"
 output: 
   ioslides_presentation:
     widescreen: true
@@ -12,34 +12,38 @@ output:
 knitr::opts_chunk$set(echo = FALSE)
 ```
 
-## Why R for geographic data processing?
+## River systems as networks
 
--   R is a powerful and flexible programming language for data analysis and visualization.
--   R has a rich ecosystem of packages for working with geographic data (e.g. `sf` for vector data and `terra` for raster data)
--   R allows for reproducible research and data processing workflows, making it easier to share and collaborate on projects.
--   R has a large and active community of users and developers, providing support and resources for learning and troubleshooting.
--   R allows for easier integration with downstream analyses (e.g. statistical modeling, machine learning, etc.) and visualization (e.g. `ggplot2`, etc.)
+-   River systems can be represented as graphs/networks
+-   Nodes (vertices) represent river segments
+-   Links (edges) represent the connections (confluences and barriers) between segments
+-   Many connectivity indices are defined for graphs, straightforward application to river systems when represented as graphs
+-   Inclusion of barriers complicates the representation, but several indices can be adapted to account for them (e.g. DCI, Dendritic Connectivity Index) 
+
+## The topology of river networks
+
+-   Planar networks: no links (edges) intersections
+-   Tree-like networks: no loops, only one path between any two nodes (vertices)
+-   Number of nodes (vertices) and links (edges) in a tree-like network: E = V - 1
+-   Weighted networks: node weights can represent attributes of river segments (e.g. length, discharge, etc.), edge weights can represent the strength of the connection (e.g. presence/absence of a barrier, etc.)
 
 ## What we will cover in this presentation
 
--   Retrieval of geographic data from various sources (e.g. HydroSHEDS, HydroATLAS, HydroRIVERS)
--   Processing of geographic data using R packages (e.g. `sf`, `terra`, `dplyr`, etc.)
--   Basic spatial operations (e.g. spatial joins, buffering, etc.)
--   Visualization of geographic data using R packages (e.g. `ggplot2`, etc.)
+-   The `igraph` package for graph manipulation in R
+-   Processing of geographic data (e.g. HydroRIVERS, HydroBASINS, HydroATLAS datasets) to generate river networks without dams
+-   processing of geographic data (e.g. AMBER) to generate river networks with dams
+-   Most of the information is covered already in the [riverconn tutorial](https://damianobaldan.github.io/riverconn_tutorial/)
 
 ## Which packages we will use
 
--   `sf` for vector data manipulation: sf represents spatial data in a simple, data.frame-like format
-
--   `terra` for raster data manipulation: it's the successor of the `raster` package and has a lot of useful functions for raster data
+-   `sf` and `terra` for vector and raster data manipulation
 
 -   `dplyr` for data manipulation: helps building pipelines for easy-to-read data manipulation (loaded with the `tidyverse`)
 
 -   `ggplot2` for data visualization: a bit painful, but easily integrates `sf` and `terra` objects for plotting (loaded with the `tidyverse`)
 
--   `rnaturalearth` for retrieving natural earth data: provides easy access to natural earth vector data (e.g. country borders, etc.)
+-   `igraph` for graph manipulation: useful for building/editing/managing graphs 
 
--   `tidyterra` for integrating `terra` objects with the `tidyverse`
 
 ## Which packages we will use
 
@@ -47,590 +51,182 @@ knitr::opts_chunk$set(echo = FALSE)
 library(tidyverse)
 library(sf)
 library(terra)
-library(rnaturalearth)
 library(tidyterra)
 library(viridis)
+library(igraph)
 ```
 
-## The HydroSHEDS dataset
+# The `igraph` package
 
--   [HydroSHEDS](https://www.hydrosheds.org/) (Hydrological data and maps based on SHuttle Elevation Derivatives at multiple Scales) is a global dataset of hydrological information derived from satellite data.
--   It provides high-resolution data on river networks, watershed boundaries, and other hydrological features
--   Data product [HydroRIVERS](https://www.hydrosheds.org/products/hydrorivers): river network data, including flow direction and flow accumulation
--   Data product [HydroBASINS](https://www.hydrosheds.org/products/hydrobasins): outlines of river basins at multiple scales (from level 1 to level 12, with increasing detail)
--   Data product [HydroATLAS](https://www.hydrosheds.org/hydroatlas): a collection of attributes for river basins, including physical, climatic, and anthropogenic characteristics
+## The `igraph` package
 
-## HydroBASINS dataset
+-   The `igraph` package implements routines for graphs and network analysis. 
+-   It can handle large graphs very well and provides functions for generating random and regular graphs, graph visualization, centrality methods and much more. 
+-   The packages allows for easy construction of igraph objects based on symbolic description of edges and vertices, edges and vertices lists, or adjacency matrices. 
+-   The book [Statistical Analysis of Network Data with R by Kolaczyk and Csardi (2014)](https://link.springer.com/book/10.1007/978-3-030-44129-6#toc) offers a comprehensive tutorial on the possibilities offered by the igraph package, including network data manipulation and visualization, descriptive analysis of network graphs, mathematical and statistical modeling of graphs, and network topology inference.
 
-We start with [HydroBASINS](https://www.hydrosheds.org/products/hydrobasins) data.
+## The `igraph` package
 
--   Different levels of details (1 to 12) with increasing resolution and number of basins
--   The dataset can be downloaded as shapefile and has to be processed locally
--   Here the data are already cropped for the Ebro river basin (Spain) at levels 5 and 10
--   Let's load in the environment the level 5 shapefile and check its content
+We build a graph using a symbolic representation of vertices and edges. The notation 1--2 means that there is an edge between vertices 1 and 2.
 
-## HydroBASINS dataset
-
-```{r hydrobasins read, echo = TRUE}
-hydrosheds_lev5 <- "data/HydroBASINS_sample/sample__hybas_eu_lev05_v1c.shp" %>% 
-  sf::st_read() %>% 
-  sf::st_make_valid()
-
+```{r igraph toy graph 1, echo = TRUE}
+g <- igraph::graph_from_literal(1--2, 2--5, 3--4, 4--5, 6--7)
+plot(g)
 ```
 
--   The pipeline operator `%>%` concatenates functions
--   `st_read()` reads the shapefile and creates an sf object
--   `st_make_valid()` ensures that the geometries are valid (e.g. no self-loops)
+## The `igraph` package
 
-## HydroBASINS dataset
+We check the graph. The graph has 7 vertices and 5 edged and is undirected (UN). The graph has the attribute name, that is a vertex attribute of class character. The graph has no edge attributes.
 
-We check the shapefile:
-
-```{r hydrobasins class, echo = TRUE}
-class(hydrosheds_lev5)
-
+```{r igraph toy graph 1 check, echo = TRUE}
+g
 ```
 
--   It is an object of class `sf`
--   It is also an object of class `data.frame`: all data.frame functions work :)
--   Is basically a data.frame with some other attributes and a geometry column
+## The `igraph` package
 
-## HydroBASINS dataset
+We build a directed graph using a symbolic representation of vertices and edges. The notation 1-+2 means that there is an edge with direction from 1 and 2. 
 
-We check the shapefile content:
-
-```{r hydrobasins head, echo = TRUE}
-head(hydrosheds_lev5)
-
+```{r igraph  toy graph 2, echo = TRUE}
+g <- igraph::graph_from_literal(1-+2, 2-+5, 3-+4, 4-+5, 6-+7)
+plot(g)
 ```
 
--   Field HYBAS_ID is the unique identifier of each basin
--   Use HYBAS_ID to filter full dataset to area of interest (in this case, HYBAS_ID == 2050017150, check e.g. with QGIS)
+## The `igraph` package
 
-## HydroBASINS dataset
+We check the graph. The graph has 7 vertices and 5 edged and is directed (DN). The graph has the attribute name, that is a vertex attribute of class character. The graph has no edge attributes.
 
-We plot the shapefile using `ggplot` and color-coding the attribute SUB_AREA:
-
-```{r hydrobasins plot1, echo=TRUE}
-plot <- ggplot() + 
-  geom_sf(data = hydrosheds_lev5, aes(fill = SUB_AREA))
-
+```{r igraph toy graph 2 check, echo = TRUE}
+g
 ```
 
-## HydroBASINS dataset
+## The `igraph` package
 
-We plot the shapefile using `ggplot` and color-coding the attribute SUB_AREA:
+We create a graph that is a bit more complex. 
 
-```{r hydrobasins plot1 setup, echo=TRUE}
-plot <- ggplot() + 
-  geom_sf(data = hydrosheds_lev5, aes(fill = SUB_AREA))
-
+```{r igraph toy graph 3, echo = TRUE}
+g <- igraph::graph_from_literal( 1-+2, 2-+5, 3-+4, 4-+5, 6-+7,
+  7-+10, 8-+9, 9-+10, 5-+11, 11-+12, 10-+13, 13-+12, 12-+14, 14-+15, 15-+16)
+plot(g)
 ```
 
-## HydroBASINS dataset
+## The `igraph` package
 
-```{r hydrobasins plot1 plot, echo=FALSE}
-plot
+We can transform this graph to an adjacenty matrix (`as_adjacency_matrix()`; 1 = there is an edge). Note that the matrix is not symmetric because the graph is directed.  
 
+```{r igraph toy graph 3 as matrix, echo = TRUE, message=FALSE, warning=FALSE}
+mat <- igraph::as_adjacency_matrix(g)
+mat[1:8, 1:8]
 ```
 
-## HydroBASINS dataset
+## The `igraph` package
 
-We try to make the plot a bit nicer. We use `ne_countries` to retrieve the world shapefile. We use `st_bbox()` to get the bounding box of the shapefile, then we use `st_crop()` to crop the world shapefile to the bounding box.
+The graph can be generated back from the adjacency matrix (`graph_from_adjacency_matrix()`). We check if the new graph is isomorphic (`isomorphic` function) to the original one (i.e. they are the same graph, but with different vertex labels).  
 
-```{r hydrobasins plot2 setup1, echo=TRUE, comment = NA}
-crs_data <- hydrosheds_lev5 %>% sf::st_crs() 
-
-world <- rnaturalearth::ne_countries(scale="medium", returnclass="sf") %>%
-  sf::st_transform(crs = crs_data ) %>%
-  sf::st_as_sf(coords=c("Long", "Lat"), crs = crs_data )
-
-bbox <- hydrosheds_lev5 %>% 
-  sf::st_bbox() %>%  
-  sf::st_as_sfc() %>%   
-  sf::st_buffer(1000 * 1000)
-
-neighbors_cropped <- world %>% 
-  sf::st_crop(bbox) %>% 
-  dplyr::select(tlc, geometry)
-
+```{r igraph toy graph 3 from matrix, echo = TRUE, message=FALSE, warning=FALSE}
+g1 <- igraph::graph_from_adjacency_matrix(mat)
+igraph::isomorphic(g1, g)
 ```
 
-## HydroBASINS dataset
+## The `igraph` package
 
-We try to make the plot a bit nicer. First we add the the background with the countries borders, then the HydroBASINS shapefile. Note that we set the limits of the plot manually.
+We can transform this graph to a data.frame (`as_data_frame()`). Note that the data.frame has two columns, `from` and `to`, that represent the source and target vertices of each edge.   
 
-```{r hydrobasins plot2 setup2, echo=TRUE}
-plot <- ggplot() + 
-  theme_bw() + 
-  geom_sf(data = neighbors_cropped, 
-          fill = "gray30", 
-          color = "gray80", 
-          alpha = 0.5, linewidth = 0.3) + 
-  geom_sf(data = hydrosheds_lev5, aes(fill = SUB_AREA)) + 
-  xlim(-10, 10) + 
-  ylim(35, 50)
-
-
+```{r igraph toy graph 3 as df, echo = TRUE, message=FALSE, warning=FALSE}
+g_df <- igraph::as_data_frame(g, "edges")
+head(g_df)
 ```
 
-## HydroBASINS dataset
+## The `igraph` package
 
-```{r hydrobasins plot2 plot, echo=FALSE}
-plot 
+The graph can be generated back from the data.frame (`graph_from_data_frame()`). We check if the new graph is isomorphic (`isomorphic`) to the original one (i.e. they are the same graph, but with different vertex labels).  
 
+```{r igraph toy graph 3 from df, echo = TRUE, message=FALSE, warning=FALSE}
+g1 <- igraph::graph_from_data_frame(g_df)
+igraph::isomorphic(g1, g)
 ```
 
-## HydroBASINS dataset level 10
+# Centrality metrics with the `igraph` package
 
-Now we move forward and check the level 10, that has higher resolution.
+## Centrality metrics with the `igraph` package
 
-```{r hydrobasins9 read, echo = TRUE}
-hydrosheds_lev10 <- "data/HydroBASINS_sample/sample__hybas_eu_lev10_v1c.shp" %>% 
-  sf::st_read() %>% 
-  sf::st_make_valid()
+-   Centrality metrics are used to identify the most important vertices in a graph
+-   Identify nodes that are relevant for connecting separate sections of the graph
+-   Degree centrality: number of edges connected to a vertex (for weighted networks: strenght)
+-   Betweenness centrality: number of shortest paths that pass through a vertex
+-   Closeness (harmonic) centrality: inverse of the average shortest path length from a vertex
+-   For directed and undirected graphs
+
+## Centrality metrics with the `igraph` package
+
+Degree centrality of node $i$ ($k_{i}$): number of edges connected to a vertex (for weighted networks: strenght)
+
+$$k_i = \sum_{j}a_{ij}$$
+where $a_{ij}$ is the element of the adjacency matrix that represents the presence (1) or absence (0) of an edge between vertices $i$ and $j$
+
+## Centrality metrics with the `igraph` package
+
+Betweenness centrality: number of shortest paths that pass through a vertex
+
+$$g_i = \sum_{s \neq i \neq t} \frac{\sigma_{st}(i)}{\sigma_{st}}  $$
+where where $\sigma_{st}$ is the total number of shortest paths from node $s$ to node $t$ and $\sigma_{st}(i)$ is the number of those paths that pass through node $i$ (not where $i$ is an end point)
+
+## Centrality metrics with the `igraph` package
+
+Closeness centrality: inverse of the average shortest path length from a vertex
+
+$$c_i = \frac{1}{\sum_{j \neq i} {d(ij)}}  $$
+Harmonic centrality: for disconnected graphs (to avoid issues with $d(ij) = \infty$)
+
+$$c_i = \sum_{j \neq i} \frac{1}{ {d(ij)}}  $$
+
+where $d(ij)$ is the shortest distance between nodes $i$ and $j$
+
+
+## Centrality metrics with the `igraph` package
+
+We create a graph, calculate degree, betweeness and closeness centrality and store the values as nodes attributes
+
+```{r igraph centrality calculation, echo = TRUE, message=FALSE, warning=FALSE}
+g <- igraph::graph_from_literal( 1-+2, 2-+5, 3-+4, 4-+5, 6-+7,
+  7-+10, 8-+9, 9-+10, 5-+11, 11-+12, 10-+13, 13-+12, 12-+14, 14-+15, 15-+16)
+V(g)$degree <- igraph::degree(g)
+V(g)$betweenness <- igraph::betweenness(g)
+V(g)$closeness <- igraph::closeness(g, mode = "all")
+g
+```
+## Centrality metrics with the `igraph` package
+
+We plot the graph with vertex color proportional to the centrality metrics
+
+```{r igraph centrality plot, echo = TRUE, message=FALSE, warning=FALSE}
+library(ggnetwork)
+gg0 <- ggnetwork(g)
+
+pl1 <- ggplot(gg0, aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_edges(arrow = arrow(length = unit(0.5, "lines"), type = "closed")) + 
+  geom_nodes(aes(color = degree), size = 5) + theme_void()
+
+pl2 <- ggplot(gg0, aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_edges(arrow = arrow(length = unit(0.5, "lines"), type = "closed")) + 
+  geom_nodes(aes(color = closeness), size = 5) + theme_void()
+
+pl3 <- ggplot(gg0, aes(x = x, y = y, xend = xend, yend = yend)) +
+  geom_edges(arrow = arrow(length = unit(0.5, "lines"), type = "closed")) + 
+  geom_nodes(aes(color = betweenness), size = 5) + theme_void()
+
+plot <- ggpubr::ggarrange(pl1, pl2, pl3, ncol = 3, nrow = 1)
 
 ```
+## Centrality metrics with the `igraph` package
 
-## HydroBASINS dataset level 10
-
-We check the shapefile content:
-
-```{r hydrobasins10 head, echo = TRUE}
-head(hydrosheds_lev10)
-
-```
-
--   Field HYBAS_ID is the unique identifier of each basin
--   Use MAIN_BAS to filter full dataset to area of interest (in this case, MAIN_BAS == 2100017150, check with e.g. QGIS)
-
-## HydroBASINS dataset level 10
-
-We plot the shapefile using `ggplot` and color-coding the attribute SUB_AREA. We use scale_fill_viridis() to set the color palette
-
-```{r hydrobasins10 plot1, echo=TRUE}
-plot <- ggplot() + 
-  theme_bw() + 
-  geom_sf(data = neighbors_cropped, 
-          fill = "gray30", 
-          color = "gray80", 
-          alpha = 0.5, linewidth = 0.3) +
-  geom_sf(data = hydrosheds_lev10, aes(fill = SUB_AREA)) + 
-  scale_fill_viridis() + 
-  xlim(-5, 3) + 
-  ylim(40, 44)
-
-```
-
-## HydroBASINS dataset level 10
-
-```{r hydrobasins10 plot1 plot, echo=FALSE}
-plot
-
-```
-
-## Extracting data from raster sources
-
--   HydroBASINS does not contain much information on the environmental conditions of the basins.
--   We can add this information with some spatial operations.
--   For now we focus on elevation and slope.
--   We download the elevation data using the `elevatr` package, that retrieves elevation data from the [AWS Terrain Tiles dataset](https://registry.opendata.aws/terrain-tiles/).
-
-```{r elevation , echo=TRUE, message=FALSE, warning=FALSE}
-library(elevatr)
-
-elevation <- hydrosheds_lev5 %>% 
-  elevatr::get_elev_raster(z = 8) %>% 
-  terra::rast()
-
-names(elevation) <- "elevation"
-
-```
-
-## Extracting data from raster sources
-
-The downloaded data are in a raster format and we can plot them directly.
-
-```{r elevation plot , echo=TRUE, message=FALSE, warning=FALSE}
-plot(elevation)
-```
-
-## Extracting data from raster sources
-
-We can also produce a plot with ggplot where we superimpose also other informations. Note that `geom_sf` does not have any aestetics, this is because we do not want things to change based on the attributes of the shapefile, but we just want to use it as a background.
-
-```{r elevation plot2 , echo=TRUE, message=FALSE, warning=FALSE}
-plot <- ggplot() + 
-  theme_bw() + 
-  tidyterra::geom_spatraster(data = elevation) + 
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) +
-  geom_sf(data = hydrosheds_lev10, fill = NA, color = "gray90", alpha = 0.5) + 
-  scale_fill_viridis(name = "Elevation (m)")
-```
-
-## Extracting data from raster sources
-
-We can also produce a plot with ggplot where we superimpose also other informations.
-
-```{r elevation plot2 plot , echo=FALSE, message=FALSE, warning=FALSE}
-plot 
-```
-
-## Extracting data from raster sources
-
-Based on the elevation data, we use the `terrain` function to calculate the slope and we plot it.
-
-```{r slope plot , echo=TRUE, message=FALSE, warning=FALSE}
-slope <- elevation %>% terra::terrain(v = "slope", unit = "degrees")
-
-names(slope) <- "slope"
-
-plot <- ggplot() + 
-  theme_bw() + 
-  tidyterra::geom_spatraster(data = slope) + 
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
-  geom_sf(data = hydrosheds_lev10, fill = NA, color = "gray90", alpha = 0.5) + 
-  scale_fill_viridis(name = "Slope (degrees)")
-```
-
-## Extracting data from raster sources
-
-```{r slope plot plot , echo=FALSE, message=FALSE, warning=FALSE}
-plot 
-```
-
-## Extracting data from raster sources
-
-Now we would like to extract the information on the elevation and the slope and assign to each level 10 subcatchment the related information. We can do this with the `extract` function of the `terra` package, that extracts the values of a raster based on the geometries of a shapefile. Then, the information is added to the shapefile with a simple `mutate` function of `dplyr`. Note that we use the `fun = mean` argument to get the average elevation and slope of each subcatchment.
-
-```{r extract elevation and slope, echo=TRUE, message=FALSE, warning=FALSE}
-
-elevation_extracted <- elevation %>% 
-  terra::extract(hydrosheds_lev10, fun = mean, na.rm = TRUE)
-
-slope_extracted <- slope %>% 
-  terra::extract(hydrosheds_lev10, fun = mean, na.rm = TRUE)
-
-hydrosheds_lev10 <- hydrosheds_lev10 %>% 
-  dplyr::mutate( elevation = elevation_extracted$elevation, 
-                 slope = slope_extracted$slope)
-
-```
-
-## Extracting data from raster sources
-
-Now we can add elevation and slope to the plot.
-
-```{r elevation and slope add to plot, echo=TRUE, message=FALSE, warning=FALSE}
-plot_elev <- ggplot() + 
-  theme_bw() +
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
-  geom_sf(data = hydrosheds_lev10, aes(fill = elevation)) + 
-  scale_fill_viridis(name = "Elevation (m)")
-
-plot_slope <- ggplot() + 
-  theme_bw() +
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
-  geom_sf(data = hydrosheds_lev10, aes(fill = slope)) + 
-  scale_fill_viridis(name = "Slope (degrees)")
-
-```
-
-## Extracting data from raster sources
-
-```{r elevation plot, echo=FALSE, message=FALSE, warning=FALSE}
-plot_elev
-```
-
-## Extracting data from raster sources
-
-```{r slope plot, echo=FALSE, message=FALSE, warning=FALSE}
-plot_slope
-```
-
-## HydroRIVERS dataset
-
-No we focus on the [HydroRIVERS](https://www.hydrosheds.org/products/hydrorivers) dataset. The data are already cropped for the Ebro river basin (Spain). We see that the structure is similar to that of HydroSHEDS, except here the geometry type is LINESTRING instead of POLYGON.
-
-```{r read hydrorivers, echo=TRUE, message=FALSE, warning=FALSE}
-hydrorivers <- "data/HydroRIVERS_sample/sample__HydroRIVERS_v10_eu.shp" %>% 
-  sf::st_read() %>% 
-  sf::st_make_valid()
-```
-
-## HydroRIVERS dataset
-
-Hydrorivers has several interesting attributes, such as the river order (ORD_STRA), the length of the river (LENGTH_KM), the average upland area (UPLAND_SKM), etc.
-
-```{r check hydrorivers, echo=TRUE, message=FALSE, warning=FALSE}
-head(hydrorivers)
-```
-
-## HydroRIVERS dataset
-
-`ggplot` can be used to plot hydrorivers. Here we color-code the river segments based on the LENGTH_KM field, and transparency-code based on stream order (ORD_STRA).
-
-```{r hydrorivers plot , echo=TRUE, message=FALSE, warning=FALSE}
-plot <- ggplot() + 
-  theme_bw() + 
-  geom_sf(data = hydrosheds_lev5, fill = "white", color = "gray50", alpha = 0.5) +
-  geom_sf(data = hydrorivers, aes(color = LENGTH_KM, alpha = ORD_STRA)) + 
-  scale_color_viridis(name = "Length (km)") + 
-  scale_alpha_continuous(name = "Stream order")
-```
-
-## HydroRIVERS dataset
-
-`ggplot` can be used to plot hydrorivers. Here, we color-code the river segments based on the LENGTH_KM field, and transparency-code based on stream order (ORD_STRA).
-
-```{r hydrorivers plot plot, echo=FALSE, message=FALSE, warning=FALSE}
+```{r igraph centrality plot plot, echo = FALSE}
 plot
 ```
 
-## HydroRIVERS dataset
 
-The hydrorivers object is quite dense (~5000 river segments), so the plot is quite busy. In many cases, it might be useful to filter out low-order segments.
+# Generating river graphs from geographic (river) data
 
-
-```{r hydrorivers filter, echo=TRUE, message=FALSE, warning=FALSE}
-nrow(hydrorivers)
-
-hydrorivers_filtered <- hydrorivers %>% 
-  dplyr::filter(ORD_STRA >= 3)
-
-nrow(hydrorivers_filtered)
-```
-
-## HydroRIVERS dataset
-
-```{r hydrorivers filtered plot, echo=FALSE, message=FALSE, warning=FALSE}
-ggplot() + 
-  theme_bw() + 
-  geom_sf(data = hydrosheds_lev5, fill = "white", color = "gray50", alpha = 0.5) +
-  geom_sf(data = hydrorivers_filtered, aes(color = LENGTH_KM, alpha = ORD_STRA)) + 
-  scale_color_viridis(name = "Length (km)") + 
-  scale_alpha_continuous(name = "Stream order")
-
-```
-
-## HydroRIVERS dataset
-
-The elevation and slope raster data can be extracted also for the river segments using the `extract` function as before.The function extracts the raster values underlying each segment and then calculates their mean value.
-
-```{r elevation slope extract hydrorivers, echo=TRUE, message=FALSE, warning=FALSE}
-elevation_extracted <- elevation %>% 
-  terra::extract(hydrorivers, fun = mean, na.rm = TRUE)
-
-slope_extracted <- slope %>% 
-  terra::extract(hydrorivers, fun = mean, na.rm = TRUE)
-
-hydrorivers <- hydrorivers %>% 
-  dplyr::mutate( elevation = elevation_extracted$elevation, 
-                 slope = slope_extracted$slope)
-```
-
-## HydroRIVERS dataset
-
-The extracted values can be plotted. Not that now the scale_color_viridis is used to color-code the river segments based on the elevation and slope values.
-
-```{r elevation slope hydrorivers plot, echo=TRUE, message=FALSE, warning=FALSE}
-plot_elev <- ggplot() + 
-  theme_bw() +
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
-  geom_sf(data = hydrorivers, aes(color = elevation)) + 
-  scale_color_viridis(name = "Elevation (m)")
-
-plot_slope <- ggplot() + 
-  theme_bw() +
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
-  geom_sf(data = hydrorivers, aes(color = slope)) + 
-  scale_color_viridis(name = "Slope (degrees)")
-```
-
-## HydroRIVERS dataset
-
-```{r elevation hydrorivers plot plot , echo=FALSE, message=FALSE, warning=FALSE}
-plot_elev
-```
-
-## HydroRIVERS dataset
-
-```{r slope hydrorivers plot plot , echo=FALSE, message=FALSE, warning=FALSE}
-plot_slope
-```
-
-## HydroATLAS dataset
-
-Finally, we load the [HydroATLAS](https://www.hydrosheds.org/hydroatlas) dataset, that contains a collection of attributes for river basins, including physical, climatic, and anthropogenic characteristics. The dataset contains both data aggregated at the subbasin level and data aggregated for river segments. The data are already cropped for the Ebro river basin.
-
-To retain the data for the Ebro catchment:
-
--   For BasinATLAS, the original data can be filtered based on the fields MAIN_BAS == 2100017150 (check in e.g. QGIS)
--   For RiverATLAS, the original data can be filtered based on the field MAIN_RIV == 20598415 (check in e.g. QGIS)
-
-
-## HydroATLAS dataset
-
-RiverATLAS has the same structure of HydroRIVERS, but has more fields. Data from several sources were used to annotate the river shapefile. The sources are listed in the documentation.
-
-```{r read riveratlas , echo=TRUE, message=FALSE, warning=FALSE}
-riveratlas <- "data/HydroATLAS_sample/sample__RiverATLAS_v10_eu.shp" %>% 
-  sf::st_read() %>% 
-  sf::st_make_valid()
-```
-
-
-## HydroATLAS dataset
-
-BasinATLAS has the same structure of HydroBASINS, but has more fields. Data from several sources were used to annotate the river shapefile. The sources are listed in the documentation.
-
-```{r read basinatlas , echo=TRUE, message=FALSE, warning=FALSE}
-basinatlas <- "data/HydroATLAS_sample/sample__BasinATLAS_v10_lev10.shp" %>% 
-  sf::st_read() %>% 
-  sf::st_make_valid()
-```
-
-
-## HydroATLAS dataset
-
-Both RiverATLAS and BasinATLAS have a lot of information.
-
-```{r check riveratlas and basinatlas , echo=TRUE, message=FALSE, warning=FALSE}
-names(riveratlas)[1:20]
-names(basinatlas)[1:20]
-```
-
-## HydroATLAS dataset
-
-Digging a bit in the documentation: dis_m3_pyr is the average yearly discharge; for_pc_use is the percentage of forest cover in the upstream area; etc.
-
-```{r discharge riveratlas forest basinatlas plot, echo=TRUE, message=FALSE, warning=FALSE}
-plot_dis <- ggplot() + 
-  theme_bw() +
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
-  geom_sf(data = riveratlas, aes(color = log10(dis_m3_pyr))) + 
-  scale_color_viridis(name = "Discharge (m3/year)\nlog10-scale")
-
-plot_forest <- ggplot() + 
-  theme_bw() +
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
-  geom_sf(data = riveratlas, aes(color = for_pc_use)) + 
-  scale_color_viridis(name = "Forest cover (%)")
-```
-
-## HydroATLAS dataset
-
-```{r  discharge riveratlas plot, echo=FALSE, message=FALSE, warning=FALSE}
-plot_dis
-```
-
-## HydroATLAS dataset
-
-```{r  forest basinatlas plot, echo=FALSE, message=FALSE, warning=FALSE}
-plot_forest
-```
-
-## Dams in the Ebro
-
-How is this information useful?
-
--  We load a dataset of dams in the Ebro
--  We check the characteristics of the subcatchments where dams are located
-
-The dams data is retrieved from the [AMBER](https://amber.international/european-barrier-atlas/) European dataset. There are a lot of barriers, but we consider only dams (`filter` function).
-
-```{r  read dams, echo=FALSE, message=FALSE, warning=FALSE}
-dams_ebro <- "data/dams_ebro/barriers_ebro.shp" %>% 
-  st_read() %>% 
-  dplyr::filter(LblAtls == "DAM")
-```
-
-## Dams in the Ebro
-
-```{r  check dams, echo=TRUE, message=FALSE, warning=FALSE}
-names(dams_ebro)
-```
-
-## Dams in the Ebro
-
-A quick plot to check the distribution of dams in the Ebro basin. We can see that they are quite concentrated in the upper part of the basin, where the elevation is higher.
-
-```{r  plot dams, echo=TRUE, message=FALSE, warning=FALSE}
-plot <- ggplot() + 
-  theme_bw() +
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) +
-  geom_sf(data = hydrorivers, aes(alpha = ORD_STRA) ) +
-  geom_sf(data = dams_ebro, color = "black", alpha = 0.5) +
-  scale_alpha_continuous(name = "Stream order")
-
-```
-
-## Dams in the Ebro
-
-```{r  plot dams plot, echo=FALSE, message=FALSE, warning=FALSE}
-plot
-```
-
-## Dams in the Ebro
-
-Next we check the characteristics of the subcatchments where dams are located. We use the function `sf::st_contains()` to check which subcatchments contain the dams. The function returns a list of indices of the dams contained by each subcatchment.
-
-```{r  spatial join dams and basinatlas, echo=TRUE, message=FALSE, warning=FALSE}
-dams_per_basin <- basinatlas %>% 
-  sf::st_contains(dams_ebro)
-
-dams_per_basin[1:20]
-```
-
-## Dams in the Ebro
-
-Based on the dams_basin object, we count how many dams per subcatchment exist and we add this information to the basinatlas shapefile. Few subcatchments have a quite high number of dams.
-
-```{r  count dams inn basinatlas, echo=TRUE, message=FALSE, warning=FALSE}
-basinatlas <- basinatlas %>% 
-  dplyr::mutate(
-    n_dams = sapply(dams_per_basin, length))
-
-plot_hist <- ggplot(basinatlas, aes(x = n_dams)) + 
-  geom_histogram(binwidth = 1) +  theme_bw() + 
-  xlab("Number of dams per subcatchment") + 
-  ylab("Count of subcatchments")
-
-```
-
-## Dams in the Ebro
-
-```{r  plot count dams inn basinatlas, echo=TRUE, message=FALSE, warning=FALSE}
-plot_hist
-```
-
-## Dams in the Ebro
-
-We can explore where the dams are located. For instance we can check if there is a relationship between the number of dams and elevation or slope. 
-
-```{r  dams density relate, echo=TRUE, message=FALSE, warning=FALSE}
-pl_dams <- basinatlas %>% 
-  dplyr::select(n_dams, ele_mt_sav, slp_dg_sav, dis_m3_pyr) %>% 
-  dplyr::filter(n_dams > 0) %>%
-  pivot_longer(
-    cols = c(ele_mt_sav, slp_dg_sav), 
-    names_to = "variable",  values_to = "value") %>%
-  ggplot() + theme_bw() +
-  geom_point(aes(x = value, y = n_dams, color = log10(dis_m3_pyr))) +
-  facet_wrap(~variable, scales = "free") + 
-  scale_color_viridis(name = "Discharge (m3/year)\nlog10-scale")
-```
-
-## Dams in the Ebro
-
-Many dams in high elevation and high slope areas, but also in areas with high discharge. Few big dams at low elevation.
-
-```{r  dams density plot, echo=FALSE, message=FALSE, warning=FALSE}
-pl_dams
-```
-
-# Thank you for listening!
-
+## Generating river graphs from geographic (river) data
 
 
 
