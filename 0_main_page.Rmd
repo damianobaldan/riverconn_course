@@ -20,7 +20,7 @@ This Github repository contains the materials for the course `Analysis of fragme
 
 # List of lectures
 
--   [lecture 1](https://damianobaldan.github.io/riverconn_course/1_data_processing.html)
+-   [lecture 1](https://damianobaldan.github.io/riverconn_course/1_data_processing.html): 
 
 -   [lecture 2](https://damianobaldan.github.io/riverconn_course/2_river_networks.html)
 
@@ -40,7 +40,7 @@ This Github repository contains the materials for the course `Analysis of fragme
 -   The original `DCI` paper: [Cote et al., 2009](https://doi.org/10.1007/s10980-008-9283-y)
 
 
-# some `riverconn` applications
+# Some `riverconn` applications
 
 -   [Kowal et al., 2024](https://doi.org/10.1016/j.ecolind.2024.112130)
 -   [Felin et al., 2025](https://doi.org/10.1016/j.scitotenv.2024.178204)
