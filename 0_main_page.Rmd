@@ -16,16 +16,40 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Content
 
-[lecture 1](https://damianobaldan.github.io/riverconn_course/1_data_processing.html)
+This Github repository contains the materials for the course `Analysis of fragmented river systems`. The Markdown scripts of the lectures are available in the root of the repository. The data used in the lectures are available in the `data` folder.
 
-[lecture 2](https://damianobaldan.github.io/riverconn_course/2_river_networks.html)
+# List of lectures
 
-# some other Content
+-   [lecture 1](https://damianobaldan.github.io/riverconn_course/1_data_processing.html)
 
-some content
+-   [lecture 2](https://damianobaldan.github.io/riverconn_course/2_river_networks.html)
 
-some other content 
+-   [lecture 3](https://damianobaldan.github.io/riverconn_course/2_river_networks.html)
 
-some additional content
+-   [lecture 4](https://damianobaldan.github.io/riverconn_course/2_river_networks.html)
+
+
+# Important papers
+
+-   The `riverconn` paper: [Baldan et al., 2022](https://doi.org/10.1016/j.envsoft.2022.105470)
+
+-   An example of riverconn application for fish metacommunities: [Baldan et al., 2023](https://doi.org/10.1016/j.scitotenv.2023.166703)
+
+-   A nice review on fragmentation indices: [Jumani et al., 2022](https://doi.org/10.1088/1748-9326/abcb37)
+
+-   The original `DCI` paper: [Cote et al., 2009](https://doi.org/10.1007/s10980-008-9283-y)
+
+
+# some `riverconn` applications
+
+-   [Kowal et al., 2024](https://doi.org/10.1016/j.ecolind.2024.112130)
+-   [Felin et al., 2025](https://doi.org/10.1016/j.scitotenv.2024.178204)
+-   [Yofukuji et al., 2026](https://doi.org/10.1111/gcb.70685)
+-   [Sun et al., 2025](https://doi.org/10.1038/s43247-025-02467-y)
+-   [Médice-Fernandes et al., 2026](https://doi.org/10.1002/aqc.70342)
+
+
+
+
 
 
