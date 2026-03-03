@@ -22,8 +22,9 @@ knitr::opts_chunk$set(echo = FALSE)
 
 -   Why fragmentation is important for riverine metacommunities (alpha and beta diversity)
 -   Example of application of `riverconn` indices to fish metacommunities in the Ebro basin
--   Linear models for alpha diversity
--   Mantel test for beta diversity
+-   Generalized linear models for alpha diversity
+-   Mantel test and multilinear regression for beta diversity
+-   Generalized linear models for the local contribution to beta diversity (LCBD)
 
 
 ## Fragmentation and metacommunities

@@ -3209,7 +3209,16 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; }
           </hgroup>
   </slide>
 
-<slide class=""><hgroup><h2>Connectivity/fragmentation indices</h2></hgroup><article  id="connectivityfragmentation-indices">
+<slide class=""><hgroup><h2>What we will cover in this presentation</h2></hgroup><article  id="what-we-will-cover-in-this-presentation">
+
+<ul>
+<li>A general overview of connectivity indices for river networks</li>
+<li>Catchment Connectivity Index (\(CCI\)) and Reach Connectivity Index (\(RCI\))</li>
+<li>We will play around with parameters of the indices to see how they change</li>
+<li>Barriers prioritization with the \(dCCI\) index</li>
+</ul>
+
+</article></slide><slide class=""><hgroup><h2>Connectivity/fragmentation indices</h2></hgroup><article  id="connectivityfragmentation-indices">
 
 <p>We define the Catchment Connectivity Index \(CCI\) as the weighted sum of all dispersal probabilities between river reaches in our catchment.</p>
 
@@ -3331,11 +3340,12 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; }
 </article></slide><slide class=""><hgroup><h2>Which packages we will use</h2></hgroup><article  id="which-packages-we-will-use">
 
 <ul>
-<li><p><code>igraph</code> for graph manipulation: useful for building/editing/managing graphs;</p></li>
-<li><p><code>riverconn</code> for calculating connectivity indices: the package we will use to calculate connectivity indices and prioritize barriers;</p></li>
-<li><p><code>sf</code> and <code>terra</code> for vector and raster data manipulation;</p></li>
-<li><p><code>dplyr</code> for data manipulation: helps building pipelines for easy-to-read data manipulation (loaded with the <code>tidyverse</code>);</p></li>
-<li><p><code>ggplot2</code> for data visualization: a bit painful, but easily integrates <code>sf</code> and <code>terra</code> objects for plotting (loaded with the <code>tidyverse</code>).</p></li>
+<li><code>igraph</code> for graph manipulation: useful for building/editing/managing graphs;</li>
+<li><code>riverconn</code> for calculating connectivity indices: the package we will use to calculate connectivity indices and prioritize barriers;</li>
+<li><code>sf</code> and <code>terra</code> for vector and raster data manipulation;</li>
+<li><code>dplyr</code> for data manipulation: helps building pipelines for easy-to-read data manipulation (loaded with the <code>tidyverse</code>);</li>
+<li><code>ggplot2</code> for data visualization: a bit painful, but easily integrates <code>sf</code> and <code>terra</code> objects for plotting (loaded with the <code>tidyverse</code>).</li>
+<li><code>dodgr</code> is a very important dependency in <code>riverconn</code> as it heavily speeds up distance-based calculation in graphs</li>
 </ul>
 
 </article></slide><slide class=""><hgroup><h2>Which packages we will use</h2></hgroup><article  id="which-packages-we-will-use-1">
@@ -3369,14 +3379,14 @@ outlet &lt;- river_net_simplified$NodeID[river_net_simplified$DIST_DN_KM == 0 ]<
 
 <pre class = 'prettyprint lang-r'>river_graph</pre>
 
-<pre >## IGRAPH 0322993 DN-- 646 645 -- 
+<pre >## IGRAPH 044d1ec DN-- 646 645 -- 
 ## + attr: name (v/n), length (v/n), HYRIV_ID (v/n), NEXT_DOWN (v/n),
 ## | MAIN_RIV (v/n), LENGTH_KM (v/n), DIST_DN_KM (v/n), DIST_UP_KM (v/n),
 ## | CATCH_SKM (v/n), UPLAND_SKM (v/n), ENDORHEIC (v/n), DIS_AV_CMS (v/n),
 ## | ORD_STRA (v/n), ORD_CLAS (v/n), ORD_FLOW (v/n), HYBAS_L12 (v/n),
 ## | elevation (v/n), type (e/c), id_links (e/n), id_barrier (e/c), pass_u
 ## | (e/n), pass_d (e/n)
-## + edges from 0322993 (vertex names):
+## + edges from 044d1ec (vertex names):
 ##  [1] 515-&gt;516 520-&gt;516 519-&gt;520 496-&gt;520 276-&gt;160 153-&gt;160 160-&gt;164 162-&gt;161
 ##  [9] 161-&gt;164 642-&gt;640 646-&gt;640 641-&gt;643 645-&gt;643 638-&gt;635 640-&gt;635 636-&gt;629
 ## [17] 644-&gt;629 632-&gt;631 639-&gt;631 629-&gt;628 631-&gt;630 630-&gt;628 628-&gt;627 627-&gt;624

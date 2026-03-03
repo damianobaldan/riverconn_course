@@ -3214,8 +3214,9 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; }
 <ul>
 <li>Why fragmentation is important for riverine metacommunities (alpha and beta diversity)</li>
 <li>Example of application of <code>riverconn</code> indices to fish metacommunities in the Ebro basin</li>
-<li>Linear models for alpha diversity</li>
-<li>Mantel test for beta diversity</li>
+<li>Generalized linear models for alpha diversity</li>
+<li>Mantel test and multilinear regression for beta diversity</li>
+<li>Generalized linear models for the local contribution to beta diversity (LCBD)</li>
 </ul>
 
 </article></slide><slide class=""><hgroup><h2>Fragmentation and metacommunities</h2></hgroup><article  id="fragmentation-and-metacommunities">
@@ -3526,12 +3527,12 @@ dist_mat_v &lt;- dist_mat[lower.tri(dist_mat)]</pre>
 <pre class = 'prettyprint lang-r'>ecodist::mantel(as.vector(beta$D) ~ dist_data$us0.9 + dist_mat_v, mrank = TRUE)</pre>
 
 <pre >##    mantelr      pval1      pval2      pval3  llim.2.5% ulim.97.5% 
-## 0.01979851 0.04400000 0.95700000 0.08400000 0.01340141 0.02676517</pre>
+## 0.01979851 0.03800000 0.96300000 0.07800000 0.01242741 0.02649615</pre>
 
 <pre class = 'prettyprint lang-r'>ecodist::mantel(as.vector(beta$D) ~ dist_data$us0.3 + dist_mat_v, mrank = TRUE)</pre>
 
 <pre >##    mantelr      pval1      pval2      pval3  llim.2.5% ulim.97.5% 
-## 0.03131460 0.02100000 0.98000000 0.04300000 0.02016667 0.04320247</pre>
+## 0.03131460 0.02800000 0.97300000 0.05300000 0.01892509 0.04353739</pre>
 
 </article></slide><slide class=""><hgroup><h2>The Ebro case study: beta diversity</h2></hgroup><article  id="the-ebro-case-study-beta-diversity-4">
 
@@ -3540,12 +3541,12 @@ dist_mat_v &lt;- dist_mat[lower.tri(dist_mat)]</pre>
 <pre class = 'prettyprint lang-r'>ecodist::mantel(as.vector(beta$D) ~ dist_data$elev + dist_mat_v, mrank = TRUE)</pre>
 
 <pre >##    mantelr      pval1      pval2      pval3  llim.2.5% ulim.97.5% 
-##  0.3316262  0.0010000  1.0000000  0.0010000  0.3179186  0.3438688</pre>
+##  0.3316262  0.0010000  1.0000000  0.0010000  0.3208781  0.3463905</pre>
 
 <pre class = 'prettyprint lang-r'>ecodist::mantel(as.vector(beta$D) ~ dist_data$size + dist_mat_v, mrank = TRUE)</pre>
 
 <pre >##    mantelr      pval1      pval2      pval3  llim.2.5% ulim.97.5% 
-##  0.1130003  0.0010000  1.0000000  0.0010000  0.0973354  0.1247409</pre>
+## 0.11300029 0.00100000 1.00000000 0.00100000 0.09852342 0.12506904</pre>
 
 </article></slide><slide class=""><hgroup><h2>The Ebro case study: beta diversity</h2></hgroup><article  id="the-ebro-case-study-beta-diversity-5">
 
@@ -3554,12 +3555,12 @@ dist_mat_v &lt;- dist_mat[lower.tri(dist_mat)]</pre>
 <pre class = 'prettyprint lang-r'>ecodist::mantel(as.vector(beta$repl) ~ dist_data$us0.9 + dist_mat_v, mrank = TRUE)</pre>
 
 <pre >##      mantelr        pval1        pval2        pval3    llim.2.5%   ulim.97.5% 
-##  0.005452647  0.294000000  0.707000000  0.602000000 -0.001865812  0.012955173</pre>
+##  0.005452647  0.311000000  0.690000000  0.592000000 -0.002358460  0.013519621</pre>
 
 <pre class = 'prettyprint lang-r'>ecodist::mantel(as.vector(beta$repl) ~ dist_data$us0.3 + dist_mat_v, mrank = TRUE)</pre>
 
 <pre >##      mantelr        pval1        pval2        pval3    llim.2.5%   ulim.97.5% 
-## -0.003790225  0.590000000  0.411000000  0.792000000 -0.015132831  0.006904825</pre>
+## -0.003790225  0.598000000  0.403000000  0.802000000 -0.013772046  0.006581602</pre>
 
 </article></slide><slide class=""><hgroup><h2>The Ebro case study: beta diversity</h2></hgroup><article  id="the-ebro-case-study-beta-diversity-6">
 
@@ -3568,12 +3569,12 @@ dist_mat_v &lt;- dist_mat[lower.tri(dist_mat)]</pre>
 <pre class = 'prettyprint lang-r'>ecodist::mantel(as.vector(beta$rich) ~ dist_data$us0.9 + dist_mat_v, mrank = TRUE)</pre>
 
 <pre >##    mantelr      pval1      pval2      pval3  llim.2.5% ulim.97.5% 
-## 0.01799911 0.02700000 0.97400000 0.04700000 0.01158644 0.02471449</pre>
+## 0.01799911 0.02700000 0.97400000 0.04400000 0.01046289 0.02484822</pre>
 
 <pre class = 'prettyprint lang-r'>ecodist::mantel(as.vector(beta$rich) ~ dist_data$us0.3 + dist_mat_v, mrank = TRUE)</pre>
 
 <pre >##    mantelr      pval1      pval2      pval3  llim.2.5% ulim.97.5% 
-## 0.03291639 0.01100000 0.99000000 0.01300000 0.02252158 0.04245623</pre>
+## 0.03291639 0.00700000 0.99400000 0.00800000 0.02353409 0.04481980</pre>
 
 </article></slide><slide class=""><hgroup><h2>The Ebro case study: beta diversity</h2></hgroup><article  id="the-ebro-case-study-beta-diversity-7">
 
@@ -3585,12 +3586,12 @@ mrm_model$coef</pre>
 <pre >##       as.vector(beta$D)  pval
 ## Int        3.046073e+04 1.000
 ## AGR        8.234396e-02 0.001
-## UR         5.466730e-02 0.003
-## us0.3     -2.237881e-02 0.161
-## us0.6      1.438261e-02 0.349
-## us0.9     -1.023377e-02 0.284
+## UR         5.466730e-02 0.006
+## us0.3     -2.237881e-02 0.155
+## us0.6      1.438261e-02 0.400
+## us0.9     -1.023377e-02 0.287
 ## elev       2.950599e-01 0.001
-## size       3.522945e-02 0.032
+## size       3.522945e-02 0.024
 ## bc         8.339824e-02 0.001
 ## cc         1.239458e-01 0.001</pre>
 
@@ -3619,9 +3620,9 @@ mrm_model$coef</pre>
 ## Int           3.775090e+04 1.000
 ## AGR           7.335994e-02 0.001
 ## UR            8.538736e-02 0.001
-## us0.3        -4.922198e-03 0.749
-## us0.6        -3.153963e-02 0.032
-## us0.9        -1.558248e-02 0.085
+## us0.3        -4.922198e-03 0.740
+## us0.6        -3.153963e-02 0.041
+## us0.9        -1.558248e-02 0.088
 ## elev          1.713842e-01 0.001
 ## size          5.543062e-02 0.001
 ## bc            8.266809e-02 0.001
@@ -3650,15 +3651,15 @@ mrm_model$coef</pre>
 
 <pre >##       as.vector(beta$rich)  pval
 ## Int           7.788446e+04 1.000
-## AGR           1.412649e-02 0.137
-## UR           -2.481665e-02 0.135
-## us0.3        -2.159695e-02 0.101
-## us0.6         4.938778e-02 0.003
-## us0.9         8.226439e-03 0.300
+## AGR           1.412649e-02 0.131
+## UR           -2.481665e-02 0.129
+## us0.3        -2.159695e-02 0.110
+## us0.6         4.938778e-02 0.001
+## us0.9         8.226439e-03 0.305
 ## elev          1.371082e-01 0.001
-## size         -1.672386e-02 0.201
-## bc            5.803352e-03 0.660
-## cc           -3.002163e-02 0.006</pre>
+## size         -1.672386e-02 0.212
+## bc            5.803352e-03 0.629
+## cc           -3.002163e-02 0.005</pre>
 
 </article></slide><slide class=""><hgroup><h2>The Ebro case study: beta diversity</h2></hgroup><article  id="the-ebro-case-study-beta-diversity-12">
 
