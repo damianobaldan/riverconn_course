@@ -125,15 +125,6 @@ plot <- ggplot() +
 
 ```
 
-## HydroBASINS dataset
-
-We plot the shapefile using `ggplot` and color-coding the attribute SUB_AREA:
-
-```{r hydrobasins plot1 setup, echo=TRUE}
-plot <- ggplot() + 
-  geom_sf(data = hydrosheds_lev5, aes(fill = SUB_AREA))
-
-```
 
 ## HydroBASINS dataset
 

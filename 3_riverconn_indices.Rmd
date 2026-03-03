@@ -1,45 +1,149 @@
 ---
-title: "Geographic data processing with R"
-subtitle: "A practical introduction to data manipulation and visualization"
+title: "Analysis of fragmented river system"
+subtitle: "Assessing fragmentation with `riverconn` indices"
 author: "Damiano Baldan"
-date: "2026-02-25"
+date: "`r Sys.Date()`"
 output: 
   ioslides_presentation:
     widescreen: true
+knit: (function(input_file, encoding) {
+  out_dir <- 'docs';
+  rmarkdown::render(input_file,
+ encoding=encoding,
+ output_file=file.path(dirname(input_file), out_dir, '3_riverconn_indices.html'))})
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 ```
 
-## Why R for geographic data processing?
 
--   R is a powerful and flexible programming language for data analysis and visualization.
--   R has a rich ecosystem of packages for working with geographic data (e.g. `sf` for vector data and `terra` for raster data)
--   R allows for reproducible research and data processing workflows, making it easier to share and collaborate on projects.
--   R has a large and active community of users and developers, providing support and resources for learning and troubleshooting.
--   R allows for easier integration with downstream analyses (e.g. statistical modeling, machine learning, etc.) and visualization (e.g. `ggplot2`, etc.)
+## Connectivity/fragmentation indices
 
-## What we will cover in this presentation
+We define the Catchment Connectivity Index $CCI$ as the weighted sum of all dispersal probabilities between river reaches in our catchment.
 
--   Retrieval of geographic data from various sources (e.g. HydroSHEDS, HydroATLAS, HydroRIVERS)
--   Processing of geographic data using R packages (e.g. `sf`, `terra`, `dplyr`, etc.)
--   Basic spatial operations (e.g. spatial joins, buffering, etc.)
--   Visualization of geographic data using R packages (e.g. `ggplot2`, etc.)
+$$CCI = \sum_{i=1}^{n}\sum_{j=1}^{n}{ I_{ij}\frac{w_{i}w_{j}}{W^2}}$$
+where:
+
+-   $I_{ij}$ is the dispersal probability between river reaches $i$ and $j$;
+-   $w_i$ and $w_j$ are the weights of the river reaches (e.g. their length, or their discharge, or available habitat);
+-   $W$ is the total weight of the river network (e.g. total length, or total discharge, or available habitat).
+
+
+## Connectivity/fragmentation indices
+
+The term $I_{ij}$ is the dispersal probability between river reaches $i$ and $j$. We factorize it to express the effect of barriers and dispersal:
+
+$$I_{ij} = B_{ij}c_{ij}$$
+where:
+
+-   $c_{ij}$ represents the effect of barriers when moving/dispersing from $i$ to $j$;
+-   $B_{ij}$ represents the effect of distance when moving from $i$ to $j$.
+
+
+## Connectivity/fragmentation indices
+
+The term $c_{ij}$ is the effect of barriers when moving/dispersing from $i$ to $j$. We express it as:
+
+$$c_{ij} = \prod_{m = 1}^{k}{p_{m}^{eq}}$$
+where:
+
+-   $p_{m}^{eq}$ is the probability of crossing barrier $m$ on the path between $i$ and $j$;
+-   $k$ is the number of barriers on the path between $i$ and $j$.
+
+## Connectivity/fragmentation indices
+
+The term $p_{m}^{eq}$ is a metric that considers the passability of barrier $m$. We consider both cases when the dispersal is symmetric and when it is asymmetric.
+
+For symmetric dispersal, we express $p_{m}^{eq}$ as the product of upstream and downstream passabilities (that are measured values, e.g. from telemetry studies: 
+
+$$p_{m}^{eq} = p_{m}^{u}p_{m}^{d}$$
+If the directionality is important, we express $p_{m}^{eq}$ as the passability in the direction of interest:
+
+$$p_{m}^{eq} = \begin{cases} 
+ p_{m}^{u} & \text{if m is crossed while moving upstream in the i to j path}\\
+ p_{m}^{d} & \text{if m is crossed while moving downstream in the i to j path } x < 0
+\end{cases} $$
+
+## Connectivity/fragmentation indices
+
+The term $B_{ij}$ considers the dispersal/movement of organisms across the river network. We can formulate the dispersal kernel as a function of the distance between river reaches $i$ and $j$:
+
+$$ B_{ij} = PD^{d_{ij}} $$
+
+where:
+
+-  $PD$ is the probability of dispersal per unit of distance (e.g. per 10s of km)
+-   $d_{ij}$ is the distance between river reaches $i$ and $j$ (e.g. in 10s km)
+
+## Connectivity/fragmentation indices
+
+The term $B_{ij}$ considers the dispersal/movement of organisms across the river network. Asymmeric dispersal can also be accounted for:
+
+$$ B_{ij} = PD_{u}^{d_{ij}^{u}} PD_{d}^{d_{ij}^{d}} $$
+
+where:
+
+-  $PD_{u}$ and $PD_{d}$ are the upstream and downlstream probabilities of dispersal per unit of distance (e.g. per 10s of km)
+-  $d_{ij}^{u}$ and $d_{ij}^{d}$ are the upstream/downstream travelled distances between river reaches $i$ and $j$ (e.g. in 10s km)
+
+
+## Connectivity/fragmentation indices
+
+An alternative formulation for $B_{ij}$ can be done with a step function:
+
+$$B_{ij} = \begin{cases} 
+ 1 & \text{when } d_{ij} < TR\\
+ 0 & \text{otherwise}
+\end{cases} $$
+
+$$B_{ij} = \begin{cases} 
+ 1 & \text{when } d_{ij}^{u} < TR_{u} \text{ and } d_{ij}^{d} < TR_{d} \\
+ 0 & \text{otherwise}
+\end{cases} $$
+
+where:
+
+-   $TR$, $TR_{u}$, $TR_{d}$ are the threshold distances
+
+Note that other dispersal kernels can be used (e.g. leptokurtic dispersal is well parametrized for many species and implemented in `riverconn`).
+
+## Connectivity/fragmentation indices
+
+We define the Reach Connectivity Index $RCI_{i}$ as the weighted sum of all dispersal probabilities entering or exiting reach $i$.
+
+$$RCI = \sum_{j=1}^{n}{ I_{ij}\frac{w_{j}}{W}}$$
+The index can be calculated considering:
+
+- only 'inwards' connections
+- only 'outwards' connections
+
+Note that the Dendritic Connectivity Index for diadromous $DCId$ fish can be calculated as $RCI$ with the outlet as focal reach.
+
+## Connectivity/fragmentation indices
+
+Barriers are prioritized using a leave-one-out approach. The importance of barrier $m$ is calculated as the difference between the connectivity of the catchment with and without barrier $m$:
+
+$$\dCCI_{m} = \frac{CCI - CCI_{-m}}{CCI} 100$$
+where:
+
+-   $CCI$ is the connectivity of the catchment with all barriers;
+-   $CCI_{-m}$ is the connectivity of the catchment without barrier $m$
+
 
 ## Which packages we will use
 
--   `sf` for vector data manipulation: sf represents spatial data in a simple, data.frame-like format
+-   `igraph` for graph manipulation: useful for building/editing/managing graphs;
 
--   `terra` for raster data manipulation: it's the successor of the `raster` package and has a lot of useful functions for raster data
+-   `riverconn` for calculating connectivity indices: the package we will use to calculate connectivity indices and prioritize barriers;
 
--   `dplyr` for data manipulation: helps building pipelines for easy-to-read data manipulation (loaded with the `tidyverse`)
+-   `sf` and `terra` for vector and raster data manipulation;
 
--   `ggplot2` for data visualization: a bit painful, but easily integrates `sf` and `terra` objects for plotting (loaded with the `tidyverse`)
+-   `dplyr` for data manipulation: helps building pipelines for easy-to-read data manipulation (loaded with the `tidyverse`);
 
--   `rnaturalearth` for retrieving natural earth data: provides easy access to natural earth vector data (e.g. country borders, etc.)
+-   `ggplot2` for data visualization: a bit painful, but easily integrates `sf` and `terra` objects for plotting (loaded with the `tidyverse`).
 
--   `tidyterra` for integrating `terra` objects with the `tidyverse`
+
 
 ## Which packages we will use
 
@@ -47,587 +151,540 @@ knitr::opts_chunk$set(echo = FALSE)
 library(tidyverse)
 library(sf)
 library(terra)
-library(rnaturalearth)
 library(tidyterra)
 library(viridis)
+library(igraph)
+library(riverconn)
 ```
 
-## The HydroSHEDS dataset
 
--   [HydroSHEDS](https://www.hydrosheds.org/) (Hydrological data and maps based on SHuttle Elevation Derivatives at multiple Scales) is a global dataset of hydrological information derived from satellite data.
--   It provides high-resolution data on river networks, watershed boundaries, and other hydrological features
--   Data product [HydroRIVERS](https://www.hydrosheds.org/products/hydrorivers): river network data, including flow direction and flow accumulation
--   Data product [HydroBASINS](https://www.hydrosheds.org/products/hydrobasins): outlines of river basins at multiple scales (from level 1 to level 12, with increasing detail)
--   Data product [HydroATLAS](https://www.hydrosheds.org/hydroatlas): a collection of attributes for river basins, including physical, climatic, and anthropogenic characteristics
+# Data preprocessing
 
-## HydroBASINS dataset
+## Data preprocessing
 
-We start with [HydroBASINS](https://www.hydrosheds.org/products/hydrobasins) data.
+We keep using the Ebro as a case study. we load the `igraph` object and the river shapefile we created in the previous lecture. We also identify the outlet.
 
--   Different levels of details (1 to 12) with increasing resolution and number of basins
--   The dataset can be downloaded as shapefile and has to be processed locally
--   Here the data are already cropped for the Ebro river basin (Spain) at levels 5 and 10
--   Let's load in the environment the level 5 shapefile and check its content
+```{r network load, echo = TRUE, message=FALSE, warning=FALSE}
+river_graph <- read_rds('data/river_graph/river_graph.rds')
 
-## HydroBASINS dataset
+river_net_simplified <- st_read("data/river_graph/river_net_simplified.shp", quiet = TRUE) %>% 
+  dplyr::mutate(name = as.character(NodeID))
 
-```{r hydrobasins read, echo = TRUE}
-hydrosheds_lev5 <- "data/HydroBASINS_sample/sample__hybas_eu_lev05_v1c.shp" %>% 
-  sf::st_read() %>% 
-  sf::st_make_valid()
+dams_shp <- st_read("data/dams_ebro/network_links.shp", quiet = TRUE) %>%
+  dplyr::mutate(id_barrier = as.character(id_barrier)) %>%
+  dplyr::filter(type =="dam")
 
+outlet <- river_net_simplified$NodeID[river_net_simplified$DIST_DN_KM == 0 ]
 ```
+## Data preprocessings
 
--   The pipeline operator `%>%` concatenates functions
--   `st_read()` reads the shapefile and creates an sf object
--   `st_make_valid()` ensures that the geometries are valid (e.g. no self-loops)
+```{r network examine, echo = TRUE, message=FALSE, warning=FALSE}
+river_graph
 
-## HydroBASINS dataset
-
-We check the shapefile:
-
-```{r hydrobasins class, echo = TRUE}
-class(hydrosheds_lev5)
+V(river_graph)$name <- as.character(V(river_graph)$name)
+river_graph <- delete_vertex_attr(river_graph, "LENGTH_KM")
+V(river_graph)$length = V(river_graph)$length/10000
 
 ```
 
--   It is an object of class `sf`
--   It is also an object of class `data.frame`: all data.frame functions work :)
--   Is basically a data.frame with some other attributes and a geometry column
+## Data preprocessing
 
-## HydroBASINS dataset
+-   `suit_fun_high()`: habitat suitability for high-altitude organisms
+-   `suit_fun_low()`: habitat suitability for low-altitude organisms
+-   we use these functions to assign a habitat suitability index (HSI) to each node of the graph.
 
-We check the shapefile content:
+```{r hsi definition, echo = TRUE, message=FALSE, warning=FALSE}
+suit_fun_high <- function(x){dnorm(x, mean = 1500, sd = 500)*410*sqrt(3*pi)}
+suit_fun_low <- function(x){exp(- 0.001*x)}
 
-```{r hydrobasins head, echo = TRUE}
-head(hydrosheds_lev5)
-
-```
-
--   Field HYBAS_ID is the unique identifier of each basin
--   Use HYBAS_ID to filter full dataset to area of interest (in this case, HYBAS_ID == 2050017150, check e.g. with QGIS)
-
-## HydroBASINS dataset
-
-We plot the shapefile using `ggplot` and color-coding the attribute SUB_AREA:
-
-```{r hydrobasins plot1, echo=TRUE}
-plot <- ggplot() + 
-  geom_sf(data = hydrosheds_lev5, aes(fill = SUB_AREA))
+V(river_graph)$HSI_low <- suit_fun_low(V(river_graph)$elevation)
+V(river_graph)$HSI_high <- suit_fun_high(V(river_graph)$elevation)
 
 ```
 
-## HydroBASINS dataset
+## Data preprocessing
 
-We plot the shapefile using `ggplot` and color-coding the attribute SUB_AREA:
+A quick check on how the habitat suitability indices look like.
 
-```{r hydrobasins plot1 setup, echo=TRUE}
-plot <- ggplot() + 
-  geom_sf(data = hydrosheds_lev5, aes(fill = SUB_AREA))
-
-```
-
-## HydroBASINS dataset
-
-```{r hydrobasins plot1 plot, echo=FALSE}
-plot
-
-```
-
-## HydroBASINS dataset
-
-We try to make the plot a bit nicer. We use `ne_countries` to retrieve the world shapefile. We use `st_bbox()` to get the bounding box of the shapefile, then we use `st_crop()` to crop the world shapefile to the bounding box.
-
-```{r hydrobasins plot2 setup1, echo=TRUE, comment = NA}
-crs_data <- hydrosheds_lev5 %>% sf::st_crs() 
-
-world <- rnaturalearth::ne_countries(scale="medium", returnclass="sf") %>%
-  sf::st_transform(crs = crs_data ) %>%
-  sf::st_as_sf(coords=c("Long", "Lat"), crs = crs_data )
-
-bbox <- hydrosheds_lev5 %>% 
-  sf::st_bbox() %>%  
-  sf::st_as_sfc() %>%   
-  sf::st_buffer(1000 * 1000)
-
-neighbors_cropped <- world %>% 
-  sf::st_crop(bbox) %>% 
-  dplyr::select(tlc, geometry)
-
-```
-
-## HydroBASINS dataset
-
-We try to make the plot a bit nicer. First we add the the background with the countries borders, then the HydroBASINS shapefile. Note that we set the limits of the plot manually.
-
-```{r hydrobasins plot2 setup2, echo=TRUE}
-plot <- ggplot() + 
-  theme_bw() + 
-  geom_sf(data = neighbors_cropped, 
-          fill = "gray30", 
-          color = "gray80", 
-          alpha = 0.5, linewidth = 0.3) + 
-  geom_sf(data = hydrosheds_lev5, aes(fill = SUB_AREA)) + 
-  xlim(-10, 10) + 
-  ylim(35, 50)
+```{r hsi definition plot , echo = TRUE, message=FALSE, warning=FALSE}
+plot <- 1:10:2500 %>%
+  data.frame("Elevation" = .,
+             "Low" = suit_fun_low(.), 
+             "High" = suit_fun_high(.)) %>%
+  pivot_longer(c("Low", "High"), 
+               names_to = "Type", values_to = "HSI") %>%
+  ggplot() + 
+  geom_line(aes(x = Elevation, y = HSI, color = Type))+
+  theme_bw() + xlab("Elevation (m)") + ylab("Habitat Suitability Index (HSI)")
 
 
 ```
 
-## HydroBASINS dataset
+## Data preprocessing
 
-```{r hydrobasins plot2 plot, echo=FALSE}
-plot 
-
-```
-
-## HydroBASINS dataset level 10
-
-Now we move forward and check the level 10, that has higher resolution.
-
-```{r hydrobasins9 read, echo = TRUE}
-hydrosheds_lev10 <- "data/HydroBASINS_sample/sample__hybas_eu_lev10_v1c.shp" %>% 
-  sf::st_read() %>% 
-  sf::st_make_valid()
-
-```
-
-## HydroBASINS dataset level 10
-
-We check the shapefile content:
-
-```{r hydrobasins10 head, echo = TRUE}
-head(hydrosheds_lev10)
-
-```
-
--   Field HYBAS_ID is the unique identifier of each basin
--   Use MAIN_BAS to filter full dataset to area of interest (in this case, MAIN_BAS == 2100017150, check with e.g. QGIS)
-
-## HydroBASINS dataset level 10
-
-We plot the shapefile using `ggplot` and color-coding the attribute SUB_AREA. We use scale_fill_viridis() to set the color palette
-
-```{r hydrobasins10 plot1, echo=TRUE}
-plot <- ggplot() + 
-  theme_bw() + 
-  geom_sf(data = neighbors_cropped, 
-          fill = "gray30", 
-          color = "gray80", 
-          alpha = 0.5, linewidth = 0.3) +
-  geom_sf(data = hydrosheds_lev10, aes(fill = SUB_AREA)) + 
-  scale_fill_viridis() + 
-  xlim(-5, 3) + 
-  ylim(40, 44)
-
-```
-
-## HydroBASINS dataset level 10
-
-```{r hydrobasins10 plot1 plot, echo=FALSE}
-plot
-
-```
-
-## Extracting data from raster sources
-
--   HydroBASINS does not contain much information on the environmental conditions of the basins.
--   We can add this information with some spatial operations.
--   For now we focus on elevation and slope.
--   We download the elevation data using the `elevatr` package, that retrieves elevation data from the [AWS Terrain Tiles dataset](https://registry.opendata.aws/terrain-tiles/).
-
-```{r elevation , echo=TRUE, message=FALSE, warning=FALSE}
-library(elevatr)
-
-elevation <- hydrosheds_lev5 %>% 
-  elevatr::get_elev_raster(z = 8) %>% 
-  terra::rast()
-
-names(elevation) <- "elevation"
-
-```
-
-## Extracting data from raster sources
-
-The downloaded data are in a raster format and we can plot them directly.
-
-```{r elevation plot , echo=TRUE, message=FALSE, warning=FALSE}
-plot(elevation)
-```
-
-## Extracting data from raster sources
-
-We can also produce a plot with ggplot where we superimpose also other informations. Note that `geom_sf` does not have any aestetics, this is because we do not want things to change based on the attributes of the shapefile, but we just want to use it as a background.
-
-```{r elevation plot2 , echo=TRUE, message=FALSE, warning=FALSE}
-plot <- ggplot() + 
-  theme_bw() + 
-  tidyterra::geom_spatraster(data = elevation) + 
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) +
-  geom_sf(data = hydrosheds_lev10, fill = NA, color = "gray90", alpha = 0.5) + 
-  scale_fill_viridis(name = "Elevation (m)")
-```
-
-## Extracting data from raster sources
-
-We can also produce a plot with ggplot where we superimpose also other informations.
-
-```{r elevation plot2 plot , echo=FALSE, message=FALSE, warning=FALSE}
-plot 
-```
-
-## Extracting data from raster sources
-
-Based on the elevation data, we use the `terrain` function to calculate the slope and we plot it.
-
-```{r slope plot , echo=TRUE, message=FALSE, warning=FALSE}
-slope <- elevation %>% terra::terrain(v = "slope", unit = "degrees")
-
-names(slope) <- "slope"
-
-plot <- ggplot() + 
-  theme_bw() + 
-  tidyterra::geom_spatraster(data = slope) + 
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
-  geom_sf(data = hydrosheds_lev10, fill = NA, color = "gray90", alpha = 0.5) + 
-  scale_fill_viridis(name = "Slope (degrees)")
-```
-
-## Extracting data from raster sources
-
-```{r slope plot plot , echo=FALSE, message=FALSE, warning=FALSE}
-plot 
-```
-
-## Extracting data from raster sources
-
-Now we would like to extract the information on the elevation and the slope and assign to each level 10 subcatchment the related information. We can do this with the `extract` function of the `terra` package, that extracts the values of a raster based on the geometries of a shapefile. Then, the information is added to the shapefile with a simple `mutate` function of `dplyr`. Note that we use the `fun = mean` argument to get the average elevation and slope of each subcatchment.
-
-```{r extract elevation and slope, echo=TRUE, message=FALSE, warning=FALSE}
-
-elevation_extracted <- elevation %>% 
-  terra::extract(hydrosheds_lev10, fun = mean, na.rm = TRUE)
-
-slope_extracted <- slope %>% 
-  terra::extract(hydrosheds_lev10, fun = mean, na.rm = TRUE)
-
-hydrosheds_lev10 <- hydrosheds_lev10 %>% 
-  dplyr::mutate( elevation = elevation_extracted$elevation, 
-                 slope = slope_extracted$slope)
-
-```
-
-## Extracting data from raster sources
-
-Now we can add elevation and slope to the plot.
-
-```{r elevation and slope add to plot, echo=TRUE, message=FALSE, warning=FALSE}
-plot_elev <- ggplot() + 
-  theme_bw() +
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
-  geom_sf(data = hydrosheds_lev10, aes(fill = elevation)) + 
-  scale_fill_viridis(name = "Elevation (m)")
-
-plot_slope <- ggplot() + 
-  theme_bw() +
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
-  geom_sf(data = hydrosheds_lev10, aes(fill = slope)) + 
-  scale_fill_viridis(name = "Slope (degrees)")
-
-```
-
-## Extracting data from raster sources
-
-```{r elevation plot, echo=FALSE, message=FALSE, warning=FALSE}
-plot_elev
-```
-
-## Extracting data from raster sources
-
-```{r slope plot, echo=FALSE, message=FALSE, warning=FALSE}
-plot_slope
-```
-
-## HydroRIVERS dataset
-
-No we focus on the [HydroRIVERS](https://www.hydrosheds.org/products/hydrorivers) dataset. The data are already cropped for the Ebro river basin (Spain). We see that the structure is similar to that of HydroSHEDS, except here the geometry type is LINESTRING instead of POLYGON.
-
-```{r read hydrorivers, echo=TRUE, message=FALSE, warning=FALSE}
-hydrorivers <- "data/HydroRIVERS_sample/sample__HydroRIVERS_v10_eu.shp" %>% 
-  sf::st_read() %>% 
-  sf::st_make_valid()
-```
-
-## HydroRIVERS dataset
-
-Hydrorivers has several interesting attributes, such as the river order (ORD_STRA), the length of the river (LENGTH_KM), the average upland area (UPLAND_SKM), etc.
-
-```{r check hydrorivers, echo=TRUE, message=FALSE, warning=FALSE}
-head(hydrorivers)
-```
-
-## HydroRIVERS dataset
-
-`ggplot` can be used to plot hydrorivers. Here we color-code the river segments based on the LENGTH_KM field, and transparency-code based on stream order (ORD_STRA).
-
-```{r hydrorivers plot , echo=TRUE, message=FALSE, warning=FALSE}
-plot <- ggplot() + 
-  theme_bw() + 
-  geom_sf(data = hydrosheds_lev5, fill = "white", color = "gray50", alpha = 0.5) +
-  geom_sf(data = hydrorivers, aes(color = LENGTH_KM, alpha = ORD_STRA)) + 
-  scale_color_viridis(name = "Length (km)") + 
-  scale_alpha_continuous(name = "Stream order")
-```
-
-## HydroRIVERS dataset
-
-`ggplot` can be used to plot hydrorivers. Here, we color-code the river segments based on the LENGTH_KM field, and transparency-code based on stream order (ORD_STRA).
-
-```{r hydrorivers plot plot, echo=FALSE, message=FALSE, warning=FALSE}
+```{r hsi definition plot plot, echo = TRUE, message=FALSE, warning=FALSE}
 plot
 ```
 
-## HydroRIVERS dataset
+# CCI with `riverconn`
 
-The hydrorivers object is quite dense (~5000 river segments), so the plot is quite busy. In many cases, it might be useful to filter out low-order segments.
+## CCI with `riverconn`
+ 
+We calculate the Carchment Connectivity Index and then play around with the function parameters. 
 
-
-```{r hydrorivers filter, echo=TRUE, message=FALSE, warning=FALSE}
-nrow(hydrorivers)
-
-hydrorivers_filtered <- hydrorivers %>% 
-  dplyr::filter(ORD_STRA >= 3)
-
-nrow(hydrorivers_filtered)
-```
-
-## HydroRIVERS dataset
-
-```{r hydrorivers filtered plot, echo=FALSE, message=FALSE, warning=FALSE}
-ggplot() + 
-  theme_bw() + 
-  geom_sf(data = hydrosheds_lev5, fill = "white", color = "gray50", alpha = 0.5) +
-  geom_sf(data = hydrorivers_filtered, aes(color = LENGTH_KM, alpha = ORD_STRA)) + 
-  scale_color_viridis(name = "Length (km)") + 
-  scale_alpha_continuous(name = "Stream order")
+-   We set `B_ij_flag = FALSE` because we do not have a dispersal kernel in this example.
+-   We set `index_type = "full"` because we are interested in calculating the $CCI$.
+-   We set the weight to the field "length".
+ 
+```{r cci calculation , echo = TRUE, message=FALSE, warning=FALSE}
+g <- river_graph
+index_calculation(graph = g, 
+                  weight = "length",
+                  B_ij_flag = FALSE, 
+                  index_type = "full")$index
 
 ```
 
-## HydroRIVERS dataset
+## CCI with `riverconn`
+ 
+Now we calculate the same index, but using asymmetric dispersal. 
 
-The elevation and slope raster data can be extracted also for the river segments using the `extract` function as before.The function extracts the raster values underlying each segment and then calculates their mean value.
+-   The index is higher because pass_u = 0.1 and pass_d = 0.8, while for the product is always used.
+-   Note that some arguments are omitted because the default values are used (see documentation).
+ 
+```{r cci calculation 1 , echo = TRUE, message=FALSE, warning=FALSE}
+g <- river_graph
+index_calculation(g, dir_fragmentation_type = "asymmetric", B_ij_flag = FALSE )$index
 
-```{r elevation slope extract hydrorivers, echo=TRUE, message=FALSE, warning=FALSE}
-elevation_extracted <- elevation %>% 
-  terra::extract(hydrorivers, fun = mean, na.rm = TRUE)
-
-slope_extracted <- slope %>% 
-  terra::extract(hydrorivers, fun = mean, na.rm = TRUE)
-
-hydrorivers <- hydrorivers %>% 
-  dplyr::mutate( elevation = elevation_extracted$elevation, 
-                 slope = slope_extracted$slope)
 ```
+## CCI with `riverconn`
+ 
+Now we edit the passabilities. 
 
-## HydroRIVERS dataset
+-   We set the upstream passability to 0.5: $CCI$ increases.
+-   We set the upstream passability to 0.1: $CCI$ decreases.
+ 
+```{r cci calculation 2 , echo = TRUE, message=FALSE, warning=FALSE}
+g <- river_graph
+E(g)$pass_u <- E(g)$pass_d  <- ifelse(!is.na(E(g)$id_barrier),0.5,NA)
+index_calculation(g, B_ij_flag = FALSE)$index
 
-The extracted values can be plotted. Not that now the scale_color_viridis is used to color-code the river segments based on the elevation and slope values.
+E(g)$pass_u <- E(g)$pass_d  <- ifelse(!is.na(E(g)$id_barrier),0,NA)
+index_calculation(g, B_ij_flag = FALSE)$index
 
-```{r elevation slope hydrorivers plot, echo=TRUE, message=FALSE, warning=FALSE}
-plot_elev <- ggplot() + 
-  theme_bw() +
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
-  geom_sf(data = hydrorivers, aes(color = elevation)) + 
-  scale_color_viridis(name = "Elevation (m)")
-
-plot_slope <- ggplot() + 
-  theme_bw() +
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
-  geom_sf(data = hydrorivers, aes(color = slope)) + 
-  scale_color_viridis(name = "Slope (degrees)")
-```
-
-## HydroRIVERS dataset
-
-```{r elevation hydrorivers plot plot , echo=FALSE, message=FALSE, warning=FALSE}
-plot_elev
-```
-
-## HydroRIVERS dataset
-
-```{r slope hydrorivers plot plot , echo=FALSE, message=FALSE, warning=FALSE}
-plot_slope
-```
-
-## HydroATLAS dataset
-
-Finally, we load the [HydroATLAS](https://www.hydrosheds.org/hydroatlas) dataset, that contains a collection of attributes for river basins, including physical, climatic, and anthropogenic characteristics. The dataset contains both data aggregated at the subbasin level and data aggregated for river segments. The data are already cropped for the Ebro river basin.
-
-To retain the data for the Ebro catchment:
-
--   For BasinATLAS, the original data can be filtered based on the fields MAIN_BAS == 2100017150 (check in e.g. QGIS)
--   For RiverATLAS, the original data can be filtered based on the field MAIN_RIV == 20598415 (check in e.g. QGIS)
-
-
-## HydroATLAS dataset
-
-RiverATLAS has the same structure of HydroRIVERS, but has more fields. Data from several sources were used to annotate the river shapefile. The sources are listed in the documentation.
-
-```{r read riveratlas , echo=TRUE, message=FALSE, warning=FALSE}
-riveratlas <- "data/HydroATLAS_sample/sample__RiverATLAS_v10_eu.shp" %>% 
-  sf::st_read() %>% 
-  sf::st_make_valid()
 ```
 
 
-## HydroATLAS dataset
+## CCI with `riverconn`
+ 
+We check the effect of the passability on the asymmetric indices. 
 
-BasinATLAS has the same structure of HydroBASINS, but has more fields. Data from several sources were used to annotate the river shapefile. The sources are listed in the documentation.
+-   We set the upstream passability to 0.5: $CCI$ increases.
+-   We set the upstream passability to 0.1: $CCI$ decreases.
+ 
+```{r cci calculation 3 , echo = TRUE, message=FALSE, warning=FALSE}
+g <- river_graph
+E(g)$pass_u <- ifelse(!is.na(E(g)$id_barrier),0.5,NA)
+index_calculation(g, dir_fragmentation_type = "asymmetric",  B_ij_flag = FALSE)$index
 
-```{r read basinatlas , echo=TRUE, message=FALSE, warning=FALSE}
-basinatlas <- "data/HydroATLAS_sample/sample__BasinATLAS_v10_lev10.shp" %>% 
-  sf::st_read() %>% 
-  sf::st_make_valid()
+E(g)$pass_u <- ifelse(!is.na(E(g)$id_barrier),0,NA)
+index_calculation(g, dir_fragmentation_type = "asymmetric",  B_ij_flag = FALSE)$index
+
 ```
+ 
+## CCI with `riverconn`
+ 
+We include the dispersal limitation with an exponentially decaying dispersal kernel 
 
+-   We set the $PD$ parameter to 0.8.
+-   We set the $PD$ parameter to 0.3.
+ 
+```{r cci calculation 4 , echo = TRUE, message=FALSE, warning=FALSE}
+g <- river_graph
+index_calculation(g, disp_type = "exponential", param = 0.8)$index
 
-## HydroATLAS dataset
-
-Both RiverATLAS and BasinATLAS have a lot of information.
-
-```{r check riveratlas and basinatlas , echo=TRUE, message=FALSE, warning=FALSE}
-names(riveratlas)[1:20]
-names(basinatlas)[1:20]
-```
-
-## HydroATLAS dataset
-
-Digging a bit in the documentation: dis_m3_pyr is the average yearly discharge; for_pc_use is the percentage of forest cover in the upstream area; etc.
-
-```{r discharge riveratlas forest basinatlas plot, echo=TRUE, message=FALSE, warning=FALSE}
-plot_dis <- ggplot() + 
-  theme_bw() +
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
-  geom_sf(data = riveratlas, aes(color = log10(dis_m3_pyr))) + 
-  scale_color_viridis(name = "Discharge (m3/year)\nlog10-scale")
-
-plot_forest <- ggplot() + 
-  theme_bw() +
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
-  geom_sf(data = riveratlas, aes(color = for_pc_use)) + 
-  scale_color_viridis(name = "Forest cover (%)")
-```
-
-## HydroATLAS dataset
-
-```{r  discharge riveratlas plot, echo=FALSE, message=FALSE, warning=FALSE}
-plot_dis
-```
-
-## HydroATLAS dataset
-
-```{r  forest basinatlas plot, echo=FALSE, message=FALSE, warning=FALSE}
-plot_forest
-```
-
-## Dams in the Ebro
-
-How is this information useful?
-
--  We load a dataset of dams in the Ebro
--  We check the characteristics of the subcatchments where dams are located
-
-The dams data is retrieved from the [AMBER](https://amber.international/european-barrier-atlas/) European dataset. There are a lot of barriers, but we consider only dams (`filter` function).
-
-```{r  read dams, echo=FALSE, message=FALSE, warning=FALSE}
-dams_ebro <- "data/dams_ebro/barriers_ebro.shp" %>% 
-  st_read() %>% 
-  dplyr::filter(LblAtls == "DAM")
-```
-
-## Dams in the Ebro
-
-```{r  check dams, echo=TRUE, message=FALSE, warning=FALSE}
-names(dams_ebro)
-```
-
-## Dams in the Ebro
-
-A quick plot to check the distribution of dams in the Ebro basin. We can see that they are quite concentrated in the upper part of the basin, where the elevation is higher.
-
-```{r  plot dams, echo=TRUE, message=FALSE, warning=FALSE}
-plot <- ggplot() + 
-  theme_bw() +
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) +
-  geom_sf(data = hydrorivers, aes(alpha = ORD_STRA) ) +
-  geom_sf(data = dams_ebro, color = "black", alpha = 0.5) +
-  scale_alpha_continuous(name = "Stream order")
+index_calculation(g, disp_type = "exponential", param = 0.3)$index
 
 ```
 
-## Dams in the Ebro
+## CCI with `riverconn`
+ 
+We include an asymmetric dispersal (`dir_distance_type = "asymmetric"`), we change the upstream dispersal probability. 
 
-```{r  plot dams plot, echo=FALSE, message=FALSE, warning=FALSE}
+-   We set the $PD_{u}$ parameter to 0.8.
+-   We set the $PD_{u}$ parameter to 0.3: lower dispersal upstream, lower $CCI$.
+ 
+```{r cci calculation 5 , echo = TRUE, message=FALSE, warning=FALSE}
+g <- river_graph
+index_calculation(g, disp_type = "exponential", dir_distance_type = "asymmetric", 
+                  param_u = 0.8, param_d = 0.5)$index
+
+index_calculation(g, disp_type = "exponential", dir_distance_type = "asymmetric", 
+                  param_u = 0.8, param_d = 0.2)$index
+
+```
+## CCI with `riverconn`
+ 
+We include use the habitat suitability index as weight. 
+
+-   We use the HSI for high altitude organisms.
+-   We use the HSI for low altitude organisms.
+ 
+```{r cci calculation 6 , echo = TRUE, message=FALSE, warning=FALSE}
+g <- river_graph
+index_calculation(g, weight = "HSI_high", param = 0.8)$index
+
+index_calculation(g, weight = "HSI_low", param = 0.8)$index
+
+```
+
+
+
+# RCI with `riverconn`
+
+## RCI with `riverconn`
+ 
+We calculate the REACH Connectivity Index and then play around with the function parameters. 
+
+-   We set `B_ij_flag = FALSE` because we do not have a dispersal kernel in this example.
+-   We set `index_type = "reach"` because we are interested in calculating the $RCI$.
+-   We set `index_mode = "to"`, as we consider all the connections exiting the reach of interest and going TO the network (a bit counter-intuitive...).
+ 
+```{r rci calculation 1, echo = TRUE, message=FALSE, warning=FALSE}
+g <- river_graph
+index <- index_calculation(graph = g, 
+                           index_type = "reach", 
+                           index_mode = "to",
+                           weight = "length", 
+                           B_ij_flag = FALSE)
+
+```
+
+
+## RCI with `riverconn`
+ 
+The output of the function is a data.frame with the index value for each reach. We filter the output to show the index value for the outlet.
+ 
+```{r rci calculation 2, echo = TRUE, message=FALSE, warning=FALSE}
+head(index)
+
+index %>% dplyr::filter(name == outlet) %>% pull(index)
+
+```
+
+## RCI with `riverconn`
+
+We calculate the same index with asymmetric dispersal.
+
+-   The index is higher with pass_u = 0.5 and lower with pass_u = 0.1
+
+```{r rci calculation 3 , echo = TRUE, message=FALSE, warning=FALSE}
+E(g)$pass_u <- ifelse(!is.na(E(g)$id_barrier),0.5,NA)
+index_calculation(g, dir_fragmentation_type ="asymmetric",
+                  index_type = "reach", index_mode = "to", B_ij_flag = FALSE) %>% 
+  dplyr::filter(name == outlet) %>% pull(index)
+
+E(g)$pass_u <- ifelse(!is.na(E(g)$id_barrier),0.1,NA)
+index_calculation(g,  dir_fragmentation_type ="asymmetric",
+                  index_type = "reach", index_mode = "to", B_ij_flag = FALSE) %>% 
+  dplyr::filter(name == outlet) %>% pull(index)
+
+```
+
+## RCI with `riverconn`
+
+We edit the downstream passability.
+
+-   no change: all dispersal routes are moving upstream.
+
+```{r rci calculation 4 , echo = TRUE, message=FALSE, warning=FALSE}
+E(g)$pass_d <- ifelse(!is.na(E(g)$id_barrier),0.5,NA)
+index_calculation(g, dir_fragmentation_type ="asymmetric",
+                  index_type = "reach", index_mode = "to", B_ij_flag = FALSE) %>% 
+  dplyr::filter(name == outlet) %>% pull(index)
+
+E(g)$pass_d <- ifelse(!is.na(E(g)$id_barrier),0.1,NA)
+index_calculation(g,  dir_fragmentation_type ="asymmetric",
+                  index_type = "reach", index_mode = "to", B_ij_flag = FALSE) %>% 
+  dplyr::filter(name == outlet) %>% pull(index)
+
+```
+
+## RCI with `riverconn`
+ 
+We include use the habitat suitability index as weight. 
+
+-   We use the HSI for high altitude organisms.
+-   We use the HSI for low altitude organisms.
+ 
+```{r cci calculation 6 , echo = TRUE, message=FALSE, warning=FALSE}
+g <- river_graph
+index_calculation(g, weight = "HSI_high", param = 0.8,
+                  index_type = "reach", index_mode = "to") %>% 
+  dplyr::filter(name == outlet) %>% pull(index)
+
+index_calculation(g, weight = "HSI_low", param = 0.8,
+                  index_type = "reach", index_mode = "to",) %>% 
+  dplyr::filter(name == outlet) %>% pull(index)
+
+```
+
+
+# Spatial patterns of RCI
+
+## Spatial patterns of RCI
+
+Now we analyze the spatial patterns of RCI. The index can easily be plotted together with the river shapefile. We calculate and plot the RCI with pass_u = pass_d = 0.5 and no dispersal limitation.
+
+```{r rci plot 1 , echo = TRUE, message=FALSE, warning=FALSE}
+index_list <- list()
+
+E(g)$pass_u <- E(g)$pass_d  <- ifelse(!is.na(E(g)$id_barrier),0.5,NA)
+index <- index_list[[1]]  <- index_calculation(
+    g, dir_fragmentation_type ="symmetric",
+    index_type = "reach", index_mode = "to", B_ij_flag = FALSE) %>% 
+  dplyr::mutate("def" = "no disp, pass = 0.5")
+
+plot <- river_net_simplified %>% 
+  left_join(index, by = "name") %>% 
+  ggplot() + 
+  geom_sf(aes(color = index), size = 1) + 
+  scale_color_viridis() + theme_bw() + 
+  labs(color = "RCI")
+
+```
+
+## Spatial patterns of RCI
+
+```{r rci plot 1 plot , echo = FALSE, message=FALSE, warning=FALSE}
 plot
 ```
 
-## Dams in the Ebro
+## Spatial patterns of RCI
 
-Next we check the characteristics of the subcatchments where dams are located. We use the function `sf::st_contains()` to check which subcatchments contain the dams. The function returns a list of indices of the dams contained by each subcatchment.
+We calculate and plot the RCI with pass_u = 0.1, pass_d = 0.8 and no dispersal limitation.
 
-```{r  spatial join dams and basinatlas, echo=TRUE, message=FALSE, warning=FALSE}
-dams_per_basin <- basinatlas %>% 
-  sf::st_contains(dams_ebro)
+```{r rci plot 2 , echo = TRUE, message=FALSE, warning=FALSE}
+g <- river_graph
+index <- index_list[[2]]  <- index_calculation(
+    g, dir_fragmentation_type ="asymmetric",
+    index_type = "reach", index_mode = "to", B_ij_flag = FALSE) %>% 
+  dplyr::mutate("def" = "no disp, pass_u=0.1, pass_d=0.9")
 
-dams_per_basin[1:20]
-```
-
-## Dams in the Ebro
-
-Based on the dams_basin object, we count how many dams per subcatchment exist and we add this information to the basinatlas shapefile. Few subcatchments have a quite high number of dams.
-
-```{r  count dams inn basinatlas, echo=TRUE, message=FALSE, warning=FALSE}
-basinatlas <- basinatlas %>% 
-  dplyr::mutate(
-    n_dams = sapply(dams_per_basin, length))
-
-plot_hist <- ggplot(basinatlas, aes(x = n_dams)) + 
-  geom_histogram(binwidth = 1) +  theme_bw() + 
-  xlab("Number of dams per subcatchment") + 
-  ylab("Count of subcatchments")
+plot <- river_net_simplified %>% 
+  left_join(index, by = "name") %>% 
+  ggplot() + 
+  geom_sf(aes(color = index), size = 1) + 
+  scale_color_viridis() + theme_bw() + 
+  labs(color = "RCI")
 
 ```
 
-## Dams in the Ebro
+## Spatial patterns of RCI
 
-```{r  plot count dams inn basinatlas, echo=TRUE, message=FALSE, warning=FALSE}
-plot_hist
+```{r rci plot 2 plot , echo = FALSE, message=FALSE, warning=FALSE}
+plot
 ```
 
-## Dams in the Ebro
+## Spatial patterns of RCI
 
-We can explore where the dams are located. For instance we can check if there is a relationship between the number of dams and elevation or slope. 
+We calculate and plot the RCI with pass_u = 0.1, pass_d = 0.8 and symmetric dispersal limitation (PD = 0.5).
 
-```{r  dams density relate, echo=TRUE, message=FALSE, warning=FALSE}
-pl_dams <- basinatlas %>% 
-  dplyr::select(n_dams, ele_mt_sav, slp_dg_sav, dis_m3_pyr) %>% 
-  dplyr::filter(n_dams > 0) %>%
-  pivot_longer(
-    cols = c(ele_mt_sav, slp_dg_sav), 
-    names_to = "variable",  values_to = "value") %>%
-  ggplot() + theme_bw() +
-  geom_point(aes(x = value, y = n_dams, color = log10(dis_m3_pyr))) +
-  facet_wrap(~variable, scales = "free") + 
-  scale_color_viridis(name = "Discharge (m3/year)\nlog10-scale")
+```{r rci plot 3 , echo = TRUE, message=FALSE, warning=FALSE}
+index <- index_list[[3]]  <- index_calculation(
+    g, dir_fragmentation_type ="asymmetric",
+    index_type = "reach", index_mode = "to", param = 0.5) %>% 
+  dplyr::mutate("def" = "PD=0.5, pass_u=0.1, pass_d=0.9")
+
+plot <- river_net_simplified %>% 
+  left_join(index, by = "name") %>% 
+  ggplot() + 
+  geom_sf(aes(color = index), size = 1) + 
+  scale_color_viridis() + theme_bw() + 
+  labs(color = "RCI")
+
 ```
 
-## Dams in the Ebro
+## Spatial patterns of RCI
 
-Many dams in high elevation and high slope areas, but also in areas with high discharge. Few big dams at low elevation.
-
-```{r  dams density plot, echo=FALSE, message=FALSE, warning=FALSE}
-pl_dams
+```{r rci plot 3 plot , echo = FALSE, message=FALSE, warning=FALSE}
+plot
 ```
+
+## Spatial patterns of RCI
+
+We calculate and plot the RCI with pass_u = 0.1, pass_d = 0.8 and symmetric dispersal limitation (PD = 0.8).
+
+```{r rci plot 4 , echo = TRUE, message=FALSE, warning=FALSE}
+index <- index_list[[4]]  <- index_calculation(
+    g, dir_fragmentation_type ="asymmetric",
+    index_type = "reach", index_mode = "to", param = 0.8) %>% 
+  dplyr::mutate("def" = "PD=0.8")
+
+plot <- river_net_simplified %>% 
+  left_join(index, by = "name") %>% 
+  ggplot() + 
+  geom_sf(aes(color = index), size = 1) + 
+  scale_color_viridis() + theme_bw() + 
+  labs(color = "RCI")
+
+```
+
+## Spatial patterns of RCI
+
+```{r rci plot 4 plot , echo = FALSE, message=FALSE, warning=FALSE}
+plot
+```
+
+
+## Spatial patterns of RCI
+
+We calculate and plot the RCI with pass_u = 0.1, pass_d = 0.8 and asymmetric dispersal limitation (PDd = 0.8, PDu = 0).
+
+```{r rci plot 5 , echo = TRUE, message=FALSE, warning=FALSE}
+index <- index_list[[5]]  <- index_calculation(
+    g, dir_fragmentation_type ="asymmetric", dir_distance_type = "asymmetric",
+    index_type = "reach", index_mode = "to", param_d = 0.8, param_u = 0) %>% 
+  dplyr::mutate("def" = "PDu=0, PDd=0.8")
+
+plot <- river_net_simplified %>% 
+  left_join(index, by = "name") %>% 
+  ggplot() + 
+  geom_sf(aes(color = index), size = 1) + 
+  scale_color_viridis() + theme_bw() + 
+  labs(color = "RCI")
+
+```
+
+## Spatial patterns of RCI
+
+```{r rci plot 5 plot , echo = FALSE, message=FALSE, warning=FALSE}
+plot
+```
+
+## Spatial patterns of RCI
+
+We calculate and plot the RCI with pass_u = 0.1, pass_d = 0.8 and asymmetric dispersal limitation (PDd = 0.5, PDu = 0).
+
+```{r rci plot 6 , echo = TRUE, message=FALSE, warning=FALSE}
+index <- index_list[[6]]  <- index_calculation(
+    g, dir_fragmentation_type ="asymmetric", dir_distance_type = "asymmetric",
+    index_type = "reach", index_mode = "to", param_d = 0.5, param_u = 0) %>% 
+  dplyr::mutate("def" = "PDu=0.5, PDd=0")
+
+plot <- river_net_simplified %>% 
+  left_join(index, by = "name") %>% 
+  ggplot() + 
+  geom_sf(aes(color = index), size = 1) + 
+  scale_color_viridis() + theme_bw() + 
+  labs(color = "RCI")
+
+```
+
+## Spatial patterns of RCI
+
+```{r rci plot 6 plot , echo = FALSE, message=FALSE, warning=FALSE}
+plot
+```
+
+
+## Spatial patterns of RCI
+
+We plot everything together to check the differences.
+
+```{r rci plot 7 , echo = TRUE, message=FALSE, warning=FALSE}
+index_all <- do.call(rbind, index_list) %>% 
+  group_by(def) %>% 
+  dplyr::mutate(rank = rank(index))
+
+plot <- river_net_simplified %>% 
+  left_join(index_all, by = "name") %>% 
+  ggplot() + theme_minimal() +
+  geom_sf(aes(color = rank), size = 1) + 
+  scale_color_viridis() + theme_bw() + 
+  labs(color = "RCI") + facet_wrap(~def) + 
+  theme(axis.text = element_blank(), axis.ticks = element_blank())
+
+```
+
+## Spatial patterns of RCI
+
+```{r rci plot 7 plot, echo = FALSE, message=FALSE, warning=FALSE}
+plot
+```
+
+# Barriers prioritization
+
+## Barriers prioritization
+
+We create the object updt_pass with the updated passability values.
+
+```{r barriers metadata plot 1 , echo = TRUE, message=FALSE, warning=FALSE}
+updt_pass <- data.frame(
+  "id_barrier" =  E(river_graph)$id_barrier[!is.na(E(river_graph)$id_barrier)],
+  "pass_u_updated" = 1,
+  "pass_d_updated" = 1)
+head(barriers_metadata)
+```
+
+
+## Barriers prioritization
+
+We use the function `d_index_calculation()` to calculate the $\dCCI$ for each barrier. Here, we calculate the index with no dispersal, and pass_u = pass_d = 0.5  
+
+```{r dcci plot 1 , echo = TRUE, message=FALSE, warning=FALSE}
+index_list <- list()
+g <- river_graph
+
+E(g)$pass_d <- E(g)$pass_u <- ifelse(!is.na(E(g)$id_barrier),0.5,NA)
+index <- index_list[[1]]  <- d_index_calculation(
+    g, barriers_metadata = updt_pass, B_ij_flag = FALSE, ncores = 5) %>% 
+  dplyr::mutate("def" = "length, no disp, pass = 0.5")
+
+plot <- ggplot() + 
+  geom_sf(data = river_net_simplified, color = "gray70") +
+  geom_sf(data = dams_shp %>% left_join(index), 
+          aes(color = d_index, size = d_index)) + 
+  scale_color_viridis() + theme_bw() + 
+  labs(color = "dCCI") + guides(size = FALSE)
+
+```
+
+## Barriers prioritization
+
+```{r dcci plot 1 plot , echo = FALSE, message=FALSE, warning=FALSE}
+plot
+```
+
+## Barriers prioritization
+
+Now we include as weight the habitat suitabiity for high altitude organisms  
+
+```{r dcci plot 1 , echo = TRUE, message=FALSE, warning=FALSE}
+index_list <- list()
+g <- river_graph
+
+E(g)$pass_d <- E(g)$pass_u <- ifelse(!is.na(E(g)$id_barrier),0.5,NA)
+index <- index_list[[1]]  <- d_index_calculation(
+    g, barriers_metadata = updt_pass, B_ij_flag = FALSE, ncores = 5) %>% 
+  dplyr::mutate("def" = "length, no disp, pass = 0.5")
+
+plot <- ggplot() + 
+  geom_sf(data = river_net_simplified, color = "gray70") +
+  geom_sf(data = dams_shp %>% left_join(index), 
+          aes(color = d_index, size = d_index)) + 
+  scale_color_viridis() + theme_bw() + 
+  labs(color = "dCCI") + guides(size = FALSE)
+
+```
+
+## Barriers prioritization
+
+```{r dcci plot 1 plot , echo = FALSE, message=FALSE, warning=FALSE}
+plot
+```
+
+
 
 # Thank you for listening!
 

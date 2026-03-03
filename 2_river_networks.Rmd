@@ -406,13 +406,12 @@ dams_snapped_reduced_joined <- dams_snapped_reduced %>%
 
 ## Barriers data processing
 
-The custom function `headwaters_dam()` is useful for identifying dams that do not have an upstream reach and would not be contributing to fragmentation.
+The custom function `headwaters_dam()` is useful for identifying dams that do not have an upstream reach and would not be contributing to fragmentation. Then dams are saved as a shapefile.
 
 ```{r dams processing 3, echo = TRUE, message = FALSE, warning = FALSE}
 headwaters_checking <- headwaters_dam(dams_snapped_reduced_joined, shape_river_simple)
 
 headwaters_checking$flag_headwater %>% sum()
-
 ```
 
 
@@ -456,6 +455,9 @@ network_links <- rbind(
     rename(geometry = x)) %>%
   mutate(id_links = 1:nrow(.))
 
+network_links %>% 
+  st_write("data/dams_ebro/network_links.shp", delete_dsn = TRUE)
+
 ```
 
 ## Integrating hydrographic and dams data
@@ -492,12 +494,22 @@ plot <- ggplot() +
 
 ## Integrating hydrographic and dams data
 
-We check with a plot
-
 ```{r final river shapefile sliced plot plot, echo = FALSE, message = FALSE, warning = FALSE}
 plot
 ```
 
+## Integrating hydrographic and dams data
+
+One last step: we extract the elevation for each river segment (its centroid) using the same workflow as in the previous lecture.
+
+```{r extract elevation, echo = TRUE, message = FALSE, warning = FALSE}
+elevation <- elevatr::get_elev_raster(shape_basin, z = 8)
+
+reach_centroids <- river_net_simplified %>% st_as_sf() %>% st_centroid()
+
+river_net_simplified$elevation <- elevation %>% terra::extract(reach_centroids)
+
+```
 
 # Troubleshooting
 
@@ -557,12 +569,18 @@ plot
 
 ## Creation of the igraph object
 
-We identify the outlet of the river network (the node with the largest upstream area) and we use it as root for building the graph. The custom function `create_network()` builds the graph based on the river shapefile and the position of confluences and dams.
+We identify the outlet of the river network (the node with the largest upstream area) and we use it as root for building the graph. The custom function `create_network()` builds the graph based on the river shapefile and the position of confluences and dams. We save the created graph and the river shapefile for later use.
 
 ```{r graph create, echo = TRUE, message = FALSE, warning = FALSE}
 outlet <- river_net_simplified$NodeID[river_net_simplified$DIST_DN_KM == 0 ]
 
 river_graph <- create_network(network_links, river_net_simplified, outlet)
+
+river_graph %>% 
+  saveRDS("data/river_graph/river_graph.rds")
+river_net_simplified %>% 
+  st_write("data/river_graph/river_net_simplified.shp", delete_dsn = TRUE)
+
 ```
 
 ## Creation of the igraph object
@@ -590,6 +608,14 @@ We edit the length attribute of the graph. and we turn the name attribute to cha
 V(river_graph)$length <- V(river_graph)$length / 10000
 V(river_graph)$name <- as.character(V(river_graph)$name)
 ```
+
+# Alternative ways of creating the graph
+
+## Alternative ways of creating the graph
+
+-   Both the HydroBASINS and the HydroRIVERS have a built-in graph structure (fields NEXT_DOWN) that can be used to create the graph.
+-   This structure oes not account for the presence of dams
+-   Sometmes we work with hydrographic data that are not as 'clean' as HydroSHEDS.
 
 
 # Centrality metrics calculation
@@ -651,13 +677,6 @@ ggplot() +
     scale_color_viridis(name = "Closeness (log10), out")+
     theme(legend.position = "bottom")
 ```
-
-
-
-
-
-
-
 
 
 

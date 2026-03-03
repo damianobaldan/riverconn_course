@@ -39,6 +39,8 @@ This Github repository contains the materials for the course `Analysis of fragme
 
 -   The original `DCI` paper: [Cote et al., 2009](https://doi.org/10.1007/s10980-008-9283-y)
 
+-   The oricinal `PCI` paper: [Rodeles et al., 2021](https://doi.org/10.1016/j.ecolind.2021.107557)
+
 
 # Some `riverconn` applications
 
