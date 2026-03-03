@@ -16,29 +16,22 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Content
 
-This Github repository contains the materials for the course `Analysis of fragmented river systems`. The Markdown scripts of the lectures are available in the root of the repository. The data used in the lectures are available in the `data` folder.
+This page contains the materials for the course `Analysis of fragmented river systems`. The markdown scripts used to generate the slides and the data used in the example are in the [riverconn_course GitHub repository](https://github.com/damianobaldan/riverconn_course).
 
 # List of lectures
 
--   [lecture 1](https://damianobaldan.github.io/riverconn_course/1_data_processing.html): 
-
--   [lecture 2](https://damianobaldan.github.io/riverconn_course/2_river_networks.html)
-
--   [lecture 3](https://damianobaldan.github.io/riverconn_course/2_river_networks.html)
-
--   [lecture 4](https://damianobaldan.github.io/riverconn_course/2_river_networks.html)
+-   [lecture 1: Geographic data processing with R](https://damianobaldan.github.io/riverconn_course/1_data_processing.html)
+-   [lecture 2: Generating river graphs](https://damianobaldan.github.io/riverconn_course/2_river_networks.html)
+-   [lecture 3: Assessing fragmentation with `riverconn` indices](https://damianobaldan.github.io/riverconn_course/3_riverconn_indices.html)
+-   [lecture 4: Assessing fragmentation impacts on riverine metacommunities](https://damianobaldan.github.io/riverconn_course/2_river_networks.html)
 
 
 # Important papers
 
 -   The `riverconn` paper: [Baldan et al., 2022](https://doi.org/10.1016/j.envsoft.2022.105470)
-
 -   An example of riverconn application for fish metacommunities: [Baldan et al., 2023](https://doi.org/10.1016/j.scitotenv.2023.166703)
-
 -   A nice review on fragmentation indices: [Jumani et al., 2022](https://doi.org/10.1088/1748-9326/abcb37)
-
 -   The original `DCI` paper: [Cote et al., 2009](https://doi.org/10.1007/s10980-008-9283-y)
-
 -   The oricinal `PCI` paper: [Rodeles et al., 2021](https://doi.org/10.1016/j.ecolind.2021.107557)
 
 
@@ -50,7 +43,10 @@ This Github repository contains the materials for the course `Analysis of fragme
 -   [Sun et al., 2025](https://doi.org/10.1038/s43247-025-02467-y)
 -   [Médice-Fernandes et al., 2026](https://doi.org/10.1002/aqc.70342)
 
+# Other useful resources
 
+-   [the riverconn tutorial](https://damianobaldan.github.io/riverconn_tutorial/)
+-   [the CRAN repository for riverconn](https://cran.r-project.org/package=riverconn) 
 
 
 
