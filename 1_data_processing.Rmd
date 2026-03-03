@@ -35,15 +35,10 @@ knitr::opts_chunk$set(echo = FALSE)
 ## Which packages we will use
 
 -   `sf` for vector data manipulation: sf represents spatial data in a simple, data.frame-like format
-
 -   `terra` for raster data manipulation: it's the successor of the `raster` package and has a lot of useful functions for raster data
-
 -   `dplyr` for data manipulation: helps building pipelines for easy-to-read data manipulation (loaded with the `tidyverse`)
-
 -   `ggplot2` for data visualization: a bit painful, but easily integrates `sf` and `terra` objects for plotting (loaded with the `tidyverse`)
-
 -   `rnaturalearth` for retrieving natural earth data: provides easy access to natural earth vector data (e.g. country borders, etc.)
-
 -   `tidyterra` for integrating `terra` objects with the `tidyverse`
 
 ## Which packages we will use

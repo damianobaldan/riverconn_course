@@ -17,6 +17,13 @@ knit: (function(input_file, encoding) {
 knitr::opts_chunk$set(echo = FALSE)
 ```
 
+## What we will cover in this presentation
+
+-   A general overview of connectivity indices for river networks
+-   Catchment Connectivity Index ($CCI$) and Reach Connectivity Index ($RCI$)
+-   We will play around with parameters of the indices to see how they change
+-   Barriers prioritization with the $dCCI$ index
+
 
 ## Connectivity/fragmentation indices
 
@@ -134,16 +141,11 @@ where:
 ## Which packages we will use
 
 -   `igraph` for graph manipulation: useful for building/editing/managing graphs;
-
 -   `riverconn` for calculating connectivity indices: the package we will use to calculate connectivity indices and prioritize barriers;
-
 -   `sf` and `terra` for vector and raster data manipulation;
-
 -   `dplyr` for data manipulation: helps building pipelines for easy-to-read data manipulation (loaded with the `tidyverse`);
-
 -   `ggplot2` for data visualization: a bit painful, but easily integrates `sf` and `terra` objects for plotting (loaded with the `tidyverse`).
-
-
+-   `dodgr` is a very important dependency in `riverconn` as it heavily speeds up distance-based calculation in graphs
 
 ## Which packages we will use
 

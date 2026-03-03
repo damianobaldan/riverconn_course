@@ -17,622 +17,427 @@ knit: (function(input_file, encoding) {
 knitr::opts_chunk$set(echo = FALSE)
 ```
 
-## Why R for geographic data processing?
-
--   R is a powerful and flexible programming language for data analysis and visualization.
--   R has a rich ecosystem of packages for working with geographic data (e.g. `sf` for vector data and `terra` for raster data)
--   R allows for reproducible research and data processing workflows, making it easier to share and collaborate on projects.
--   R has a large and active community of users and developers, providing support and resources for learning and troubleshooting.
--   R allows for easier integration with downstream analyses (e.g. statistical modeling, machine learning, etc.) and visualization (e.g. `ggplot2`, etc.)
 
 ## What we will cover in this presentation
 
--   Retrieval of geographic data from various sources (e.g. HydroSHEDS, HydroATLAS, HydroRIVERS)
--   Processing of geographic data using R packages (e.g. `sf`, `terra`, `dplyr`, etc.)
--   Basic spatial operations (e.g. spatial joins, buffering, etc.)
--   Visualization of geographic data using R packages (e.g. `ggplot2`, etc.)
+-   Why fragmentation is important for riverine metacommunities (alpha and beta diversity)
+-   Example of application of `riverconn` indices to fish metacommunities in the Ebro basin
+-   Linear models for alpha diversity
+-   Mantel test for beta diversity
+
+
+## Fragmentation and metacommunities
+
+-   Metacommunity: a set of local communities linked by dispersal
+-   Local communities are influenced by both local environmental conditions and regional dispersal processes
+-   Mass effect (ME) archetype: high dispersal -> 'everything is everywhere'
+-   Species sorting (SS) archetype: low dispersal -> high effect of local environment (filter)
+-   Dispersal (connectivity) strength regulates between ME and SS
+
+
+## Fragmentation and metacommunities
+
+-   In a landscape, central sites are more connected and peripherical sites are more isolated
+-   We expect effect of centrality/isolation on alpha and beta diversity
+-   River network have per se strong spatial structure
+-   dams affect this spatial structure
+-   `riverconn` indices can help quantifying this 'new' spatial structure
+
 
 ## Which packages we will use
 
--   `sf` for vector data manipulation: sf represents spatial data in a simple, data.frame-like format
-
--   `terra` for raster data manipulation: it's the successor of the `raster` package and has a lot of useful functions for raster data
-
 -   `dplyr` for data manipulation: helps building pipelines for easy-to-read data manipulation (loaded with the `tidyverse`)
-
 -   `ggplot2` for data visualization: a bit painful, but easily integrates `sf` and `terra` objects for plotting (loaded with the `tidyverse`)
+-   `vegan` for ecological analyses: provides functions for calculating diversity indices and performing Mantel tests
+-   `MASS` for the negative binomial GLM 
+-   `adespatial` for calculating beta diversity
+-   `ecodist` for the Mantel test with multiple predictors
+-   `betareg` and `StepBeta` for Generalized Linear Models with beta link function
 
--   `rnaturalearth` for retrieving natural earth data: provides easy access to natural earth vector data (e.g. country borders, etc.)
-
--   `tidyterra` for integrating `terra` objects with the `tidyverse`
 
 ## Which packages we will use
 
 ```{r libraries, echo = TRUE, message=FALSE, warning=FALSE}
 library(tidyverse)
 library(sf)
-library(terra)
-library(rnaturalearth)
-library(tidyterra)
 library(viridis)
+library(igraph)
+library(riverconn)
+library(vegan)
+library(MASS)
+library(adespatial)
+library(ecodist)
+library(betareg)
+library(StepBeta)
 ```
 
-## The HydroSHEDS dataset
+# The Ebro case study: input data
 
--   [HydroSHEDS](https://www.hydrosheds.org/) (Hydrological data and maps based on SHuttle Elevation Derivatives at multiple Scales) is a global dataset of hydrological information derived from satellite data.
--   It provides high-resolution data on river networks, watershed boundaries, and other hydrological features
--   Data product [HydroRIVERS](https://www.hydrosheds.org/products/hydrorivers): river network data, including flow direction and flow accumulation
--   Data product [HydroBASINS](https://www.hydrosheds.org/products/hydrobasins): outlines of river basins at multiple scales (from level 1 to level 12, with increasing detail)
--   Data product [HydroATLAS](https://www.hydrosheds.org/hydroatlas): a collection of attributes for river basins, including physical, climatic, and anthropogenic characteristics
+## The Ebro case study: input data
 
-## HydroBASINS dataset
+We use fish metacommunities data collected in the Ebro. The data were already processed. First we read all the input data, then we check them.
 
-We start with [HydroBASINS](https://www.hydrosheds.org/products/hydrobasins) data.
+```{r input data read , echo = TRUE, message=FALSE, warning=FALSE}
+species_mat_pa  <- read.table("data/metacomm_data/ebro_species_mat_pa.txt")
 
--   Different levels of details (1 to 12) with increasing resolution and number of basins
--   The dataset can be downloaded as shapefile and has to be processed locally
--   Here the data are already cropped for the Ebro river basin (Spain) at levels 5 and 10
--   Let's load in the environment the level 5 shapefile and check its content
+env_mat <- read.table("data/metacomm_data/ebro_env_mat.txt") %>% 
+  dplyr::mutate( across( where(is.character), factor)) 
 
-## HydroBASINS dataset
+frag_mat <- read.table("data/metacomm_data/ebro_frag_mat.txt")
 
-```{r hydrobasins read, echo = TRUE}
-hydrosheds_lev5 <- "data/HydroBASINS_sample/sample__hybas_eu_lev05_v1c.shp" %>% 
-  sf::st_read() %>% 
-  sf::st_make_valid()
+centr_mat <- read.table("data/metacomm_data/ebro_centr_mat.txt")
 
+dist_mat <- readRDS("data/metacomm_data/dist_mat_ebro.RDS") 
+dist_mat <- dist_mat[rownames(species_mat_pa), rownames(species_mat_pa)]
+
+# # species_mat_inv_pa  <- read.table("data/metacomm_data/ebro_species_mat_inv_pa.txt")
+# frag_mat <- read.table("data/metacomm_data/ebro_frag_mat.txt")
+# # frag_mat_c <- read.table("data/metacomm_data/ebro_frag_mat_c.txt")
+# beta <- readRDS("data/metacomm_data/ebro_beta_dist_mat.RDS")
+# centr_mat <- read.table("data/metacomm_data/ebro_centr_mat.txt")
+# LCBD_df <- read.table("data/metacomm_data/ebro_LCBD_df.txt")
+# dist_mat <- readRDS("data/metacomm_data/dist_mat_ebro.RDS")
 ```
 
--   The pipeline operator `%>%` concatenates functions
--   `st_read()` reads the shapefile and creates an sf object
--   `st_make_valid()` ensures that the geometries are valid (e.g. no self-loops)
 
-## HydroBASINS dataset
+## The Ebro case study: input data
 
-We check the shapefile:
+We check the species-sites matrix (`species_mat_pa`). There's not many species in the Ebro, and most of the sites have few species.
 
-```{r hydrobasins class, echo = TRUE}
-class(hydrosheds_lev5)
-
+```{r species data check 1, echo = TRUE, message=FALSE, warning=FALSE}
+nrow(species_mat_pa)
+ncol(species_mat_pa)
 ```
 
--   It is an object of class `sf`
--   It is also an object of class `data.frame`: all data.frame functions work :)
--   Is basically a data.frame with some other attributes and a geometry column
+## The Ebro case study: input data
 
-## HydroBASINS dataset
+We check the species-sites matrix (`species_mat_pa`). There's not many species in the Ebro, and most of the sites have few species.
 
-We check the shapefile content:
-
-```{r hydrobasins head, echo = TRUE}
-head(hydrosheds_lev5)
-
+```{r species data check 2, echo = TRUE, message=FALSE, warning=FALSE}
+names(species_mat_pa)
+rowSums(species_mat_pa) %>% summary()
 ```
 
--   Field HYBAS_ID is the unique identifier of each basin
--   Use HYBAS_ID to filter full dataset to area of interest (in this case, HYBAS_ID == 2050017150, check e.g. with QGIS)
+## The Ebro case study: input data
 
-## HydroBASINS dataset
+We read the sampling points shapefile and plot the species richness.
 
-We plot the shapefile using `ggplot` and color-coding the attribute SUB_AREA:
+```{r species data check 3, echo = TRUE, message=FALSE, warning=FALSE}
+richness <- rowSums(species_mat_pa) %>% 
+  data.frame(Site_ID = names(.), richness = .)
 
-```{r hydrobasins plot1, echo=TRUE}
-plot <- ggplot() + 
-  geom_sf(data = hydrosheds_lev5, aes(fill = SUB_AREA))
+sampling_points <- st_read("data/metacomm_data/fish_Ebro_points.shp", quiet = TRUE) %>% 
+  dplyr::filter(Site_ID %in% rownames(species_mat_pa) ) %>% 
+  left_join(richness, by = "Site_ID")
 
+river_shapefile <- st_read("data/river_graph/river_net_simplified.shp", quiet = TRUE)
 ```
 
-## HydroBASINS dataset
+## The Ebro case study: input data
 
-We plot the shapefile using `ggplot` and color-coding the attribute SUB_AREA:
+We read the sampling points shapefile and plot the species richness.
 
-```{r hydrobasins plot1 setup, echo=TRUE}
-plot <- ggplot() + 
-  geom_sf(data = hydrosheds_lev5, aes(fill = SUB_AREA))
-
+```{r species data check 3 plot, echo = TRUE, message=FALSE, warning=FALSE}
+plot <- ggplot() +  theme_minimal() +
+  geom_sf(data = river_shapefile, color = "gray50", size = 0.2) +
+  geom_sf(data = sampling_points, aes(color = richness), alpha = 0.5) +
+  scale_color_viridis(name = "Species richness") +
+  theme(legend.position = "right")
 ```
+## The Ebro case study: input data
 
-## HydroBASINS dataset
+We read the sampling points shapefile and plot the species richness.
 
-```{r hydrobasins plot1 plot, echo=FALSE}
-plot
-
-```
-
-## HydroBASINS dataset
-
-We try to make the plot a bit nicer. We use `ne_countries` to retrieve the world shapefile. We use `st_bbox()` to get the bounding box of the shapefile, then we use `st_crop()` to crop the world shapefile to the bounding box.
-
-```{r hydrobasins plot2 setup1, echo=TRUE, comment = NA}
-crs_data <- hydrosheds_lev5 %>% sf::st_crs() 
-
-world <- rnaturalearth::ne_countries(scale="medium", returnclass="sf") %>%
-  sf::st_transform(crs = crs_data ) %>%
-  sf::st_as_sf(coords=c("Long", "Lat"), crs = crs_data )
-
-bbox <- hydrosheds_lev5 %>% 
-  sf::st_bbox() %>%  
-  sf::st_as_sfc() %>%   
-  sf::st_buffer(1000 * 1000)
-
-neighbors_cropped <- world %>% 
-  sf::st_crop(bbox) %>% 
-  dplyr::select(tlc, geometry)
-
-```
-
-## HydroBASINS dataset
-
-We try to make the plot a bit nicer. First we add the the background with the countries borders, then the HydroBASINS shapefile. Note that we set the limits of the plot manually.
-
-```{r hydrobasins plot2 setup2, echo=TRUE}
-plot <- ggplot() + 
-  theme_bw() + 
-  geom_sf(data = neighbors_cropped, 
-          fill = "gray30", 
-          color = "gray80", 
-          alpha = 0.5, linewidth = 0.3) + 
-  geom_sf(data = hydrosheds_lev5, aes(fill = SUB_AREA)) + 
-  xlim(-10, 10) + 
-  ylim(35, 50)
-
-
-```
-
-## HydroBASINS dataset
-
-```{r hydrobasins plot2 plot, echo=FALSE}
-plot 
-
-```
-
-## HydroBASINS dataset level 10
-
-Now we move forward and check the level 10, that has higher resolution.
-
-```{r hydrobasins9 read, echo = TRUE}
-hydrosheds_lev10 <- "data/HydroBASINS_sample/sample__hybas_eu_lev10_v1c.shp" %>% 
-  sf::st_read() %>% 
-  sf::st_make_valid()
-
-```
-
-## HydroBASINS dataset level 10
-
-We check the shapefile content:
-
-```{r hydrobasins10 head, echo = TRUE}
-head(hydrosheds_lev10)
-
-```
-
--   Field HYBAS_ID is the unique identifier of each basin
--   Use MAIN_BAS to filter full dataset to area of interest (in this case, MAIN_BAS == 2100017150, check with e.g. QGIS)
-
-## HydroBASINS dataset level 10
-
-We plot the shapefile using `ggplot` and color-coding the attribute SUB_AREA. We use scale_fill_viridis() to set the color palette
-
-```{r hydrobasins10 plot1, echo=TRUE}
-plot <- ggplot() + 
-  theme_bw() + 
-  geom_sf(data = neighbors_cropped, 
-          fill = "gray30", 
-          color = "gray80", 
-          alpha = 0.5, linewidth = 0.3) +
-  geom_sf(data = hydrosheds_lev10, aes(fill = SUB_AREA)) + 
-  scale_fill_viridis() + 
-  xlim(-5, 3) + 
-  ylim(40, 44)
-
-```
-
-## HydroBASINS dataset level 10
-
-```{r hydrobasins10 plot1 plot, echo=FALSE}
-plot
-
-```
-
-## Extracting data from raster sources
-
--   HydroBASINS does not contain much information on the environmental conditions of the basins.
--   We can add this information with some spatial operations.
--   For now we focus on elevation and slope.
--   We download the elevation data using the `elevatr` package, that retrieves elevation data from the [AWS Terrain Tiles dataset](https://registry.opendata.aws/terrain-tiles/).
-
-```{r elevation , echo=TRUE, message=FALSE, warning=FALSE}
-library(elevatr)
-
-elevation <- hydrosheds_lev5 %>% 
-  elevatr::get_elev_raster(z = 8) %>% 
-  terra::rast()
-
-names(elevation) <- "elevation"
-
-```
-
-## Extracting data from raster sources
-
-The downloaded data are in a raster format and we can plot them directly.
-
-```{r elevation plot , echo=TRUE, message=FALSE, warning=FALSE}
-plot(elevation)
-```
-
-## Extracting data from raster sources
-
-We can also produce a plot with ggplot where we superimpose also other informations. Note that `geom_sf` does not have any aestetics, this is because we do not want things to change based on the attributes of the shapefile, but we just want to use it as a background.
-
-```{r elevation plot2 , echo=TRUE, message=FALSE, warning=FALSE}
-plot <- ggplot() + 
-  theme_bw() + 
-  tidyterra::geom_spatraster(data = elevation) + 
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) +
-  geom_sf(data = hydrosheds_lev10, fill = NA, color = "gray90", alpha = 0.5) + 
-  scale_fill_viridis(name = "Elevation (m)")
-```
-
-## Extracting data from raster sources
-
-We can also produce a plot with ggplot where we superimpose also other informations.
-
-```{r elevation plot2 plot , echo=FALSE, message=FALSE, warning=FALSE}
-plot 
-```
-
-## Extracting data from raster sources
-
-Based on the elevation data, we use the `terrain` function to calculate the slope and we plot it.
-
-```{r slope plot , echo=TRUE, message=FALSE, warning=FALSE}
-slope <- elevation %>% terra::terrain(v = "slope", unit = "degrees")
-
-names(slope) <- "slope"
-
-plot <- ggplot() + 
-  theme_bw() + 
-  tidyterra::geom_spatraster(data = slope) + 
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
-  geom_sf(data = hydrosheds_lev10, fill = NA, color = "gray90", alpha = 0.5) + 
-  scale_fill_viridis(name = "Slope (degrees)")
-```
-
-## Extracting data from raster sources
-
-```{r slope plot plot , echo=FALSE, message=FALSE, warning=FALSE}
-plot 
-```
-
-## Extracting data from raster sources
-
-Now we would like to extract the information on the elevation and the slope and assign to each level 10 subcatchment the related information. We can do this with the `extract` function of the `terra` package, that extracts the values of a raster based on the geometries of a shapefile. Then, the information is added to the shapefile with a simple `mutate` function of `dplyr`. Note that we use the `fun = mean` argument to get the average elevation and slope of each subcatchment.
-
-```{r extract elevation and slope, echo=TRUE, message=FALSE, warning=FALSE}
-
-elevation_extracted <- elevation %>% 
-  terra::extract(hydrosheds_lev10, fun = mean, na.rm = TRUE)
-
-slope_extracted <- slope %>% 
-  terra::extract(hydrosheds_lev10, fun = mean, na.rm = TRUE)
-
-hydrosheds_lev10 <- hydrosheds_lev10 %>% 
-  dplyr::mutate( elevation = elevation_extracted$elevation, 
-                 slope = slope_extracted$slope)
-
-```
-
-## Extracting data from raster sources
-
-Now we can add elevation and slope to the plot.
-
-```{r elevation and slope add to plot, echo=TRUE, message=FALSE, warning=FALSE}
-plot_elev <- ggplot() + 
-  theme_bw() +
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
-  geom_sf(data = hydrosheds_lev10, aes(fill = elevation)) + 
-  scale_fill_viridis(name = "Elevation (m)")
-
-plot_slope <- ggplot() + 
-  theme_bw() +
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
-  geom_sf(data = hydrosheds_lev10, aes(fill = slope)) + 
-  scale_fill_viridis(name = "Slope (degrees)")
-
-```
-
-## Extracting data from raster sources
-
-```{r elevation plot, echo=FALSE, message=FALSE, warning=FALSE}
-plot_elev
-```
-
-## Extracting data from raster sources
-
-```{r slope plot, echo=FALSE, message=FALSE, warning=FALSE}
-plot_slope
-```
-
-## HydroRIVERS dataset
-
-No we focus on the [HydroRIVERS](https://www.hydrosheds.org/products/hydrorivers) dataset. The data are already cropped for the Ebro river basin (Spain). We see that the structure is similar to that of HydroSHEDS, except here the geometry type is LINESTRING instead of POLYGON.
-
-```{r read hydrorivers, echo=TRUE, message=FALSE, warning=FALSE}
-hydrorivers <- "data/HydroRIVERS_sample/sample__HydroRIVERS_v10_eu.shp" %>% 
-  sf::st_read() %>% 
-  sf::st_make_valid()
-```
-
-## HydroRIVERS dataset
-
-Hydrorivers has several interesting attributes, such as the river order (ORD_STRA), the length of the river (LENGTH_KM), the average upland area (UPLAND_SKM), etc.
-
-```{r check hydrorivers, echo=TRUE, message=FALSE, warning=FALSE}
-head(hydrorivers)
-```
-
-## HydroRIVERS dataset
-
-`ggplot` can be used to plot hydrorivers. Here we color-code the river segments based on the LENGTH_KM field, and transparency-code based on stream order (ORD_STRA).
-
-```{r hydrorivers plot , echo=TRUE, message=FALSE, warning=FALSE}
-plot <- ggplot() + 
-  theme_bw() + 
-  geom_sf(data = hydrosheds_lev5, fill = "white", color = "gray50", alpha = 0.5) +
-  geom_sf(data = hydrorivers, aes(color = LENGTH_KM, alpha = ORD_STRA)) + 
-  scale_color_viridis(name = "Length (km)") + 
-  scale_alpha_continuous(name = "Stream order")
-```
-
-## HydroRIVERS dataset
-
-`ggplot` can be used to plot hydrorivers. Here, we color-code the river segments based on the LENGTH_KM field, and transparency-code based on stream order (ORD_STRA).
-
-```{r hydrorivers plot plot, echo=FALSE, message=FALSE, warning=FALSE}
+```{r species data check 3 plot plot, echo = TRUE, message=FALSE, warning=FALSE}
 plot
 ```
 
-## HydroRIVERS dataset
+## The Ebro case study: input data
 
-The hydrorivers object is quite dense (~5000 river segments), so the plot is quite busy. In many cases, it might be useful to filter out low-order segments.
+We check the environmental data matrix (`env_mat`). We have 11 covariates.
 
-
-```{r hydrorivers filter, echo=TRUE, message=FALSE, warning=FALSE}
-nrow(hydrorivers)
-
-hydrorivers_filtered <- hydrorivers %>% 
-  dplyr::filter(ORD_STRA >= 3)
-
-nrow(hydrorivers_filtered)
+```{r env data check, echo = TRUE, message=FALSE, warning=FALSE}
+nrow(env_mat)
+ncol(env_mat)
+names(env_mat)
 ```
 
-## HydroRIVERS dataset
+## The Ebro case study: input data
 
-```{r hydrorivers filtered plot, echo=FALSE, message=FALSE, warning=FALSE}
-ggplot() + 
-  theme_bw() + 
-  geom_sf(data = hydrosheds_lev5, fill = "white", color = "gray50", alpha = 0.5) +
-  geom_sf(data = hydrorivers_filtered, aes(color = LENGTH_KM, alpha = ORD_STRA)) + 
-  scale_color_viridis(name = "Length (km)") + 
-  scale_alpha_continuous(name = "Stream order")
+From the fragmentation matrix (`frag_mat`) we consider the DCI values calculated with: uniform habitat weight, symmetric dispersal (`param = c(0.3, 0.6, 0.9)`), and `pass_u = pass_d = 0.5` 
 
+```{r frag data check, echo = TRUE, message=FALSE, warning=FALSE}
+frag_mat %>% 
+  dplyr::select(index_us0.3,index_us0.6,index_us0.9 ) %>% 
+  summary()
 ```
 
-## HydroRIVERS dataset
+## The Ebro case study: input data
 
-The elevation and slope raster data can be extracted also for the river segments using the `extract` function as before.The function extracts the raster values underlying each segment and then calculates their mean value.
+We consider also two classic network centrality metrics: betweenness centrality and out-closeness centrality. 
 
-```{r elevation slope extract hydrorivers, echo=TRUE, message=FALSE, warning=FALSE}
-elevation_extracted <- elevation %>% 
-  terra::extract(hydrorivers, fun = mean, na.rm = TRUE)
-
-slope_extracted <- slope %>% 
-  terra::extract(hydrorivers, fun = mean, na.rm = TRUE)
-
-hydrorivers <- hydrorivers %>% 
-  dplyr::mutate( elevation = elevation_extracted$elevation, 
-                 slope = slope_extracted$slope)
+```{r centr data check, echo = TRUE, message=FALSE, warning=FALSE}
+centr_mat %>% 
+  dplyr::select(BCdir, CCout) %>% 
+  summary()
 ```
+## The Ebro case study: input data
 
-## HydroRIVERS dataset
+Finally, we also check the distance matrix (distances in meters). 
 
-The extracted values can be plotted. Not that now the scale_color_viridis is used to color-code the river segments based on the elevation and slope values.
-
-```{r elevation slope hydrorivers plot, echo=TRUE, message=FALSE, warning=FALSE}
-plot_elev <- ggplot() + 
-  theme_bw() +
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
-  geom_sf(data = hydrorivers, aes(color = elevation)) + 
-  scale_color_viridis(name = "Elevation (m)")
-
-plot_slope <- ggplot() + 
-  theme_bw() +
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
-  geom_sf(data = hydrorivers, aes(color = slope)) + 
-  scale_color_viridis(name = "Slope (degrees)")
+```{r dist mat data check, echo = TRUE, message=FALSE, warning=FALSE}
+hist(dist_mat)
 ```
+## The Ebro case study: input data
 
-## HydroRIVERS dataset
+We have all the data we need. We put all the predictors in a single data.frame. We logtransform fragmentation variables. We logit-transform land use variables. Finally, we scale all the variables. We drop a couple of variables that are highli correlated. 
 
-```{r elevation hydrorivers plot plot , echo=FALSE, message=FALSE, warning=FALSE}
-plot_elev
-```
+```{r assembling predictors, echo = TRUE, message=FALSE, warning=FALSE}
+pred_mat_lm_full <- cbind(
+  env_mat %>% dplyr::select(elev, Dischrg) %>%  rename(size = Dischrg) %>%  dplyr::mutate(size = (size)^0.25),
+  env_mat %>% dplyr::select(AGR, UR, FR) %>% car::logit(),
+  frag_mat %>% dplyr::select(index_us0.3, index_us0.6, index_us0.9) %>%
+    dplyr::mutate(index_us0.3 = log10(index_us0.3),
+                  index_us0.6 = log10(index_us0.6),
+                  index_us0.9 = log10(index_us0.9)) %>%
+    rename_all(~stringr::str_replace(.,"index_","")),
+  centr_mat %>% dplyr::select(BCdir, CCout) ) %>%
+  mutate_if(is.numeric, ~(scale(.) %>% as.vector))
 
-## HydroRIVERS dataset
+cor_mat <- pred_mat_lm_full %>%  cor(method = "spearman")
+pred_mat_lm <- pred_mat_lm_full %>% dplyr::select(-us0.6, -FR)
 
-```{r slope hydrorivers plot plot , echo=FALSE, message=FALSE, warning=FALSE}
-plot_slope
-```
-
-## HydroATLAS dataset
-
-Finally, we load the [HydroATLAS](https://www.hydrosheds.org/hydroatlas) dataset, that contains a collection of attributes for river basins, including physical, climatic, and anthropogenic characteristics. The dataset contains both data aggregated at the subbasin level and data aggregated for river segments. The data are already cropped for the Ebro river basin.
-
-To retain the data for the Ebro catchment:
-
--   For BasinATLAS, the original data can be filtered based on the fields MAIN_BAS == 2100017150 (check in e.g. QGIS)
--   For RiverATLAS, the original data can be filtered based on the field MAIN_RIV == 20598415 (check in e.g. QGIS)
-
-
-## HydroATLAS dataset
-
-RiverATLAS has the same structure of HydroRIVERS, but has more fields. Data from several sources were used to annotate the river shapefile. The sources are listed in the documentation.
-
-```{r read riveratlas , echo=TRUE, message=FALSE, warning=FALSE}
-riveratlas <- "data/HydroATLAS_sample/sample__RiverATLAS_v10_eu.shp" %>% 
-  sf::st_read() %>% 
-  sf::st_make_valid()
 ```
 
 
-## HydroATLAS dataset
+## The Ebro case study: input data
 
-BasinATLAS has the same structure of HydroBASINS, but has more fields. Data from several sources were used to annotate the river shapefile. The sources are listed in the documentation.
-
-```{r read basinatlas , echo=TRUE, message=FALSE, warning=FALSE}
-basinatlas <- "data/HydroATLAS_sample/sample__BasinATLAS_v10_lev10.shp" %>% 
-  sf::st_read() %>% 
-  sf::st_make_valid()
-```
-
-
-## HydroATLAS dataset
-
-Both RiverATLAS and BasinATLAS have a lot of information.
-
-```{r check riveratlas and basinatlas , echo=TRUE, message=FALSE, warning=FALSE}
-names(riveratlas)[1:20]
-names(basinatlas)[1:20]
-```
-
-## HydroATLAS dataset
-
-Digging a bit in the documentation: dis_m3_pyr is the average yearly discharge; for_pc_use is the percentage of forest cover in the upstream area; etc.
-
-```{r discharge riveratlas forest basinatlas plot, echo=TRUE, message=FALSE, warning=FALSE}
-plot_dis <- ggplot() + 
-  theme_bw() +
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
-  geom_sf(data = riveratlas, aes(color = log10(dis_m3_pyr))) + 
-  scale_color_viridis(name = "Discharge (m3/year)\nlog10-scale")
-
-plot_forest <- ggplot() + 
-  theme_bw() +
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) + 
-  geom_sf(data = riveratlas, aes(color = for_pc_use)) + 
-  scale_color_viridis(name = "Forest cover (%)")
-```
-
-## HydroATLAS dataset
-
-```{r  discharge riveratlas plot, echo=FALSE, message=FALSE, warning=FALSE}
-plot_dis
-```
-
-## HydroATLAS dataset
-
-```{r  forest basinatlas plot, echo=FALSE, message=FALSE, warning=FALSE}
-plot_forest
-```
-
-## Dams in the Ebro
-
-How is this information useful?
-
--  We load a dataset of dams in the Ebro
--  We check the characteristics of the subcatchments where dams are located
-
-The dams data is retrieved from the [AMBER](https://amber.international/european-barrier-atlas/) European dataset. There are a lot of barriers, but we consider only dams (`filter` function).
-
-```{r  read dams, echo=FALSE, message=FALSE, warning=FALSE}
-dams_ebro <- "data/dams_ebro/barriers_ebro.shp" %>% 
-  st_read() %>% 
-  dplyr::filter(LblAtls == "DAM")
-```
-
-## Dams in the Ebro
-
-```{r  check dams, echo=TRUE, message=FALSE, warning=FALSE}
-names(dams_ebro)
-```
-
-## Dams in the Ebro
-
-A quick plot to check the distribution of dams in the Ebro basin. We can see that they are quite concentrated in the upper part of the basin, where the elevation is higher.
-
-```{r  plot dams, echo=TRUE, message=FALSE, warning=FALSE}
-plot <- ggplot() + 
-  theme_bw() +
-  geom_sf(data = hydrosheds_lev5, fill = NA, color = "gray50", alpha = 0.5) +
-  geom_sf(data = hydrorivers, aes(alpha = ORD_STRA) ) +
-  geom_sf(data = dams_ebro, color = "black", alpha = 0.5) +
-  scale_alpha_continuous(name = "Stream order")
+```{r plotting predictors, echo = TRUE, message=FALSE, warning=FALSE}
+corrplot::corrplot(cor_mat, type = "lower", method = "color", tl.col = "black", tl.srt = 45,
+    addCoef.col = "black", number.cex = 0.7, diag = FALSE)
 
 ```
 
-## Dams in the Ebro
+# The Ebro case study: alpha diversity
 
-```{r  plot dams plot, echo=FALSE, message=FALSE, warning=FALSE}
-plot
+## The Ebro case study: alpha diversity
+
+We want to analyze the drivers of alpha diversity. We use species richness and we employ a Generalized Linear Model with a negative binomial link function. We use a forward selection to select a parsimonious model. 
+
+```{r alpha model, echo = TRUE, message=FALSE, warning=FALSE}
+rich <- rowSums(species_mat_pa)
 ```
 
-## Dams in the Ebro
+## The Ebro case study: alpha diversity
 
-Next we check the characteristics of the subcatchments where dams are located. We use the function `sf::st_contains()` to check which subcatchments contain the dams. The function returns a list of indices of the dams contained by each subcatchment.
-
-```{r  spatial join dams and basinatlas, echo=TRUE, message=FALSE, warning=FALSE}
-dams_per_basin <- basinatlas %>% 
-  sf::st_contains(dams_ebro)
-
-dams_per_basin[1:20]
+```{r alpha model 2, echo = TRUE, message=FALSE, warning=FALSE}
+hist(rich)
 ```
 
-## Dams in the Ebro
+## The Ebro case study: alpha diversity
 
-Based on the dams_basin object, we count how many dams per subcatchment exist and we add this information to the basinatlas shapefile. Few subcatchments have a quite high number of dams.
+We want to analyze the drivers of alpha diversity. We use species richness and we employ a Generalized Linear Model with a negative binomial link function. We use a forward selection to select a parsimonious model. 
 
-```{r  count dams inn basinatlas, echo=TRUE, message=FALSE, warning=FALSE}
-basinatlas <- basinatlas %>% 
-  dplyr::mutate(
-    n_dams = sapply(dams_per_basin, length))
-
-plot_hist <- ggplot(basinatlas, aes(x = n_dams)) + 
-  geom_histogram(binwidth = 1) +  theme_bw() + 
-  xlab("Number of dams per subcatchment") + 
-  ylab("Count of subcatchments")
-
+```{r alpha model step, echo = TRUE, message=FALSE, warning=FALSE}
+lm_rich <- step(
+  object = glm.nb(rich ~ 1, data = pred_mat_lm),
+  scope = formula(glm.nb(rich ~ ., data = pred_mat_lm)),
+  direction = "forward", trace = 0)
 ```
 
-## Dams in the Ebro
+## The Ebro case study: alpha diversity
 
-```{r  plot count dams inn basinatlas, echo=TRUE, message=FALSE, warning=FALSE}
-plot_hist
+```{r alpha model summary, echo = TRUE, message=FALSE, warning=FALSE}
+summary(lm_rich)
 ```
 
-## Dams in the Ebro
+## The Ebro case study: alpha diversity
 
-We can explore where the dams are located. For instance we can check if there is a relationship between the number of dams and elevation or slope. 
+We see that fragmentation has some effect, but not the way we intend it.
 
-```{r  dams density relate, echo=TRUE, message=FALSE, warning=FALSE}
-pl_dams <- basinatlas %>% 
-  dplyr::select(n_dams, ele_mt_sav, slp_dg_sav, dis_m3_pyr) %>% 
-  dplyr::filter(n_dams > 0) %>%
-  pivot_longer(
-    cols = c(ele_mt_sav, slp_dg_sav), 
-    names_to = "variable",  values_to = "value") %>%
-  ggplot() + theme_bw() +
-  geom_point(aes(x = value, y = n_dams, color = log10(dis_m3_pyr))) +
-  facet_wrap(~variable, scales = "free") + 
-  scale_color_viridis(name = "Discharge (m3/year)\nlog10-scale")
+```{r alpha model plotmo,  echo=FALSE, results='hide',fig.keep='all'}
+plotmo::plotmo(lm_rich)
 ```
 
-## Dams in the Ebro
+# The Ebro case study: beta diversity
 
-Many dams in high elevation and high slope areas, but also in areas with high discharge. Few big dams at low elevation.
+## The Ebro case study: beta diversity
 
-```{r  dams density plot, echo=FALSE, message=FALSE, warning=FALSE}
-pl_dams
+Next we want to analyze what are the drivers of beta diversity. First we calculate the beta diversity matrix with `adespatial::beta.div()` function. We use the Sorensen indices, and we are interested in three components of the beta diversity: the total beta diversity (D), the richness difference (rich), and the replacement (repl), as they capture different community asssembly processes.
+
+```{r beta calculation,  echo=FALSE, results='hide',fig.keep='all'}
+beta <- beta.div.comp(species_mat_pa, coef = "S")
+names(beta)
 ```
+## The Ebro case study: beta diversity
+
+We use a Mantel test (`ecodist::mantel()`) to check the influence of fragmentation on beta diversity. First we calculate distances between predictors. We also retain the lower triangle of the distance matrix for later use.
+
+```{r beta predictors,  echo = TRUE, message=FALSE, warning=FALSE}
+dist_data <- cbind(
+  "AGR" = ecodist::distance(env_mat$AGR  %>% car::logit() %>% scale %>% as.vector),
+  "UR" = ecodist::distance(env_mat$UR  %>% car::logit() %>% scale %>% as.vector),
+  "us0.3" = ecodist::distance(frag_mat$index_us0.3 %>% scale %>% as.vector),
+  "us0.6" = ecodist::distance(frag_mat$index_us0.6 %>% scale %>% as.vector),
+  "us0.9" = ecodist::distance(frag_mat$index_us0.9 %>% scale %>% as.vector),
+  "elev" = ecodist::distance(env_mat$elev %>% scale %>% as.vector),
+  "size" = ecodist::distance(env_mat$Dischrg ^ 0.25 %>% scale %>% as.vector),
+  "bc" = ecodist::distance(centr_mat$BCdir %>% scale %>% as.vector),
+  "cc" = ecodist::distance(centr_mat$CCout %>% scale %>% as.vector)
+) %>% as.data.frame()
+
+dist_mat_v <- dist_mat[lower.tri(dist_mat)]
+```
+
+## The Ebro case study: beta diversity
+
+Next, we use the Mantel test check the influence of fragmentation on beta diversity. We partial out the effect of distance. The tests are marginally significant.
+
+```{r beta mantel 1,  echo = TRUE, message=FALSE, warning=FALSE}
+ecodist::mantel(as.vector(beta$D) ~ dist_data$us0.9 + dist_mat_v, mrank = TRUE)
+ecodist::mantel(as.vector(beta$D) ~ dist_data$us0.3 + dist_mat_v, mrank = TRUE)
+```
+## The Ebro case study: beta diversity
+
+Instead we check the effect of elevation and size, and they are both highly significant.
+
+```{r beta mantel 2,  echo = TRUE, message=FALSE, warning=FALSE}
+ecodist::mantel(as.vector(beta$D) ~ dist_data$elev + dist_mat_v, mrank = TRUE)
+ecodist::mantel(as.vector(beta$D) ~ dist_data$size + dist_mat_v, mrank = TRUE)
+```
+## The Ebro case study: beta diversity
+
+We check the effect of fragmentation on the replacement component.
+
+```{r beta mantel 3,  echo = TRUE, message=FALSE, warning=FALSE}
+ecodist::mantel(as.vector(beta$repl) ~ dist_data$us0.9 + dist_mat_v, mrank = TRUE)
+ecodist::mantel(as.vector(beta$repl) ~ dist_data$us0.3 + dist_mat_v, mrank = TRUE)
+```
+
+## The Ebro case study: beta diversity
+
+We check the effect of fragmentation on the richness difference component.
+
+```{r beta mantel 4,  echo = TRUE, message=FALSE, warning=FALSE}
+ecodist::mantel(as.vector(beta$rich) ~ dist_data$us0.9 + dist_mat_v, mrank = TRUE)
+ecodist::mantel(as.vector(beta$rich) ~ dist_data$us0.3 + dist_mat_v, mrank = TRUE)
+```
+
+## The Ebro case study: beta diversity
+
+To facilitate the comparison we can use the multilinear regression on the distance matrix, that allows for multiple predictors. No significant effect of fragmentation.
+
+```{r beta mrm beta 1,  echo = TRUE, message=FALSE, warning=FALSE}
+mrm_model <- MRM(formula = as.vector(beta$D) ~., data = dist_data, mrank = TRUE)
+mrm_model$coef
+```
+## The Ebro case study: beta diversity
+
+To facilitate the comparison we can use the multilinear regression on the distance matrix, that allows for multiple predictors.
+
+```{r beta mrm beta 2,  echo = TRUE, message=FALSE, warning=FALSE}
+mrm_model$r.squared
+mrm_model$F.test
+```
+
+## The Ebro case study: beta diversity
+
+We fit a MRM model to the replacement component. Marginally significant effect of fragmentation. 
+
+```{r beta mrm repl 1,  echo = TRUE, message=FALSE, warning=FALSE}
+mrm_model <- MRM(formula = as.vector(beta$repl) ~., data = dist_data, mrank = TRUE)
+mrm_model$coef
+```
+## The Ebro case study: beta diversity
+
+We fit a MRM model to the replacement component. Significant effect of fragmentation.
+
+```{r beta mrm repl 2,  echo = TRUE, message=FALSE, warning=FALSE}
+mrm_model$r.squared
+mrm_model$F.test
+```
+
+## The Ebro case study: beta diversity
+
+We fit a MRM model to the richness difference component. Significant effect of fragmentation.
+
+```{r beta mrm rich 1,  echo = TRUE, message=FALSE, warning=FALSE}
+mrm_model <- MRM(formula = as.vector(beta$rich) ~., data = dist_data, mrank = TRUE)
+mrm_model$coef
+```
+## The Ebro case study: beta diversity
+
+We fit a MRM model to the richness difference component. Marginally significant effect of fragmentation.
+
+```{r beta mrm rich 2,  echo = TRUE, message=FALSE, warning=FALSE}
+mrm_model$r.squared
+mrm_model$F.test
+```
+
+
+# The Ebro case study: Local Contribution to Beta Diversity (LCBD)
+
+## The Ebro case study: LCBD
+
+Finally, we analyze LCBD, that is the contribution of each site to the total beta diversity. We check if LCBD is related to fragmentation. We first calculate LCBDs.
+
+```{r beta lcbd,  echo = TRUE, message=FALSE, warning=FALSE}
+LCBD_df <- data.frame(
+  "site" = rownames(species_mat_pa),
+  "LCBD_repl" = LCBD.comp(beta[[1]] ^ 0.5 )[[2]],
+  "LCBD_rich" = LCBD.comp(beta[[2]] ^ 0.5 )[[2]],
+  "LCBD_D" = LCBD.comp(beta[[3]] ^ 0.5 )[[2]]  ) %>%
+  column_to_rownames("site") %>%
+  mutate(LCBD_repl = ifelse(LCBD_repl <0, abs(LCBD_repl), LCBD_repl))
+```
+
+## The Ebro case study: LCBD
+
+We fit a Generalized Linear Model with a beta link function.
+
+```{r beta lcbd beta,  echo = TRUE, message=FALSE, warning=FALSE, results='hide'}
+beta <- LCBD_df$LCBD_D
+start <- betareg::betareg(beta ~ ., data = pred_mat_lm)
+breg <- StepBeta::StepBeta(start)
+breg$pseudo.r.squared
+```
+## The Ebro case study: LCBD
+
+```{r beta lcbd beta summary,  echo = FALSE, message=FALSE, warning=FALSE}
+summary(breg, FALSE)
+```
+## The Ebro case study: LCBD
+
+We fit a Generalized Linear Model with a beta link function. We fit the replacement LCBDs.
+
+```{r beta lcbd repl,  echo = TRUE, message=FALSE, warning=FALSE, results='hide'}
+beta <- LCBD_df$LCBD_repl
+start <- betareg::betareg(beta ~ ., data = pred_mat_lm)
+breg <- StepBeta::StepBeta(start)
+breg$pseudo.r.squared
+```
+## The Ebro case study: LCBD
+
+```{r beta lcbd repl summary,  echo = FALSE, message=FALSE, warning=FALSE}
+summary(breg, FALSE)
+```
+
+## The Ebro case study: LCBD
+
+We fit a Generalized Linear Model with a beta link function. We fit the richness difference LCBDs.
+
+```{r beta lcbd rich,  echo = TRUE, message=FALSE, warning=FALSE, results='hide'}
+beta <- LCBD_df$LCBD_rich
+start <- betareg::betareg(beta ~ ., data = pred_mat_lm)
+breg <- StepBeta::StepBeta(start)
+breg$pseudo.r.squared
+```
+## The Ebro case study: LCBD
+
+```{r beta lcbd rich summary,  echo = FALSE, message=FALSE, warning=FALSE}
+summary(breg, FALSE)
+```
+
 
 # Thank you for listening!
 

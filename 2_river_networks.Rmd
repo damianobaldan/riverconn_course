@@ -17,6 +17,13 @@ knit: (function(input_file, encoding) {
 knitr::opts_chunk$set(echo = FALSE)
 ```
 
+## What we will cover in this presentation
+
+-   River systems as networks
+-   The topology of river networks
+-   The `igraph` package for graph manipulation and centrality metrics calculation in R
+-   Processing of geographic data (e.g. HydroRIVERS, HydroBASINS, HydroATLAS datasets) to generate river networks with and without dams
+
 ## River systems as networks
 
 -   River systems can be represented as graphs/networks
@@ -42,11 +49,8 @@ knitr::opts_chunk$set(echo = FALSE)
 ## Which packages we will use
 
 -   `sf` and `terra` for vector and raster data manipulation
-
 -   `dplyr` for data manipulation: helps building pipelines for easy-to-read data manipulation (loaded with the `tidyverse`)
-
 -   `ggplot2` for data visualization: a bit painful, but easily integrates `sf` and `terra` objects for plotting (loaded with the `tidyverse`)
-
 -   `igraph` for graph manipulation: useful for building/editing/managing graphs 
 
 
