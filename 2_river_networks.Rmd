@@ -19,32 +19,26 @@ knitr::opts_chunk$set(echo = FALSE)
 
 ## What we will cover in this presentation
 
--   River systems as networks
--   The topology of river networks
--   The `igraph` package for graph manipulation and centrality metrics calculation in R
--   Processing of geographic data (e.g. HydroRIVERS, HydroBASINS, HydroATLAS datasets) to generate river networks with and without dams
+-   River systems as networks.
+-   The topology of river networks.
+-   The `igraph` package for graph manipulation and centrality metrics calculation in R.
+-   Processing of geographic data to generate river networks with and without dams.
+-   Most of the information is covered already in the [riverconn tutorial](https://damianobaldan.github.io/riverconn_tutorial/).
 
 ## River systems as networks
 
--   River systems can be represented as graphs/networks
--   Nodes (vertices) represent river segments
--   Links (edges) represent the connections (confluences and barriers) between segments
--   Many connectivity indices are defined for graphs, straightforward application to river systems when represented as graphs
--   Inclusion of barriers complicates the representation, but several indices can be adapted to account for them (e.g. DCI, Dendritic Connectivity Index) 
+-   River systems can be represented as graphs/networks.
+-   Nodes (vertices) represent river segments.
+-   Links (edges) represent the connections (confluences and barriers) between segments.
+-   Many connectivity indices are defined for graphs, straightforward application to river systems when represented as graphs.
+-   Inclusion of barriers complicates the representation, but several indices can be adapted to account for them (e.g. DCI, Dendritic Connectivity Index). 
 
 ## The topology of river networks
 
--   Planar networks: no links (edges) intersections
--   Tree-like networks: no loops, only one path between any two nodes (vertices)
--   Number of nodes (vertices) and links (edges) in a tree-like network: E = V - 1
--   Weighted networks: node weights can represent attributes of river segments (e.g. length, discharge, etc.), edge weights can represent the strength of the connection (e.g. presence/absence of a barrier, etc.)
-
-## What we will cover in this presentation
-
--   The `igraph` package for graph manipulation in R
--   Processing of geographic data (e.g. HydroRIVERS, HydroBASINS, HydroATLAS datasets) to generate river networks without dams
--   processing of geographic data (e.g. AMBER) to generate river networks with dams
--   Most of the information is covered already in the [riverconn tutorial](https://damianobaldan.github.io/riverconn_tutorial/)
+-   Planar networks: no links (edges) intersections.
+-   Tree-like networks: no loops, only one path between any two nodes (vertices).
+-   Number of nodes (vertices) and links (edges) in a tree-like network: E = V - 1.
+-   Weighted networks: node weights can represent attributes of river segments (e.g. length, discharge, etc.), edge weights can represent the strength of the connection (e.g. presence/absence of a barrier, etc.).
 
 ## Which packages we will use
 
@@ -158,12 +152,12 @@ igraph::isomorphic(g1, g)
 
 ## Centrality metrics with the `igraph` package
 
--   Centrality metrics are used to identify the most important vertices in a graph
--   Identify nodes that are relevant for connecting separate sections of the graph
--   Degree centrality: number of edges connected to a vertex (for weighted networks: strenght)
--   Betweenness centrality: number of shortest paths that pass through a vertex
--   Closeness (harmonic) centrality: inverse of the average shortest path length from a vertex
--   For directed and undirected graphs
+-   Centrality metrics are used to identify the most important vertices in a graph.
+-   Identify nodes that are relevant for connecting separate sections of the graph.
+-   Degree centrality: number of edges connected to a vertex (for weighted networks: strenght).
+-   Betweenness centrality: number of shortest paths that pass through a vertex.
+-   Closeness (harmonic) centrality: inverse of the average shortest path length from a vertex.
+-   For directed and undirected graphs.
 
 ## Centrality metrics with the `igraph` package
 
@@ -177,7 +171,7 @@ where $a_{ij}$ is the element of the adjacency matrix that represents the presen
 Betweenness centrality: number of shortest paths that pass through a vertex
 
 $$g_i = \sum_{s \neq i \neq t} \frac{\sigma_{st}(i)}{\sigma_{st}}  $$
-where where $\sigma_{st}$ is the total number of shortest paths from node $s$ to node $t$ and $\sigma_{st}(i)$ is the number of those paths that pass through node $i$ (not where $i$ is an end point)
+where where $\sigma_{st}$ is the total number of shortest paths from node $s$ to node $t$ and $\sigma_{st}(i)$ is the number of those paths that pass through node $i$ (not where $i$ is an endpoint)
 
 ## Centrality metrics with the `igraph` package
 
@@ -237,6 +231,13 @@ plot
 
 ## The Ebro case study
 
+Based on the geographyc data that were retrieved in the previous lecture, we would like to build a graph representation of the Ebro river network. In this representation:
+
+- vertices are river segments.
+- edges are confluences or dams.
+
+## The Ebro case study
+
 We load the input data in the environment. We have three shapefiles: one for the river network, one for the river basin and one for the dams. The dams are from a local dataset, that contains also informations on the upstream reservoir.
 
 ```{r river data input read, echo = TRUE}
@@ -271,7 +272,7 @@ nrow(shape_river_small)
 
 We convert the dams shapefile from polygons to points (the polygons are the borders of the reservoir).
 
-```{r plot everything, echo = TRUE, message = FALSE}
+```{r plot everything, echo = TRUE, message = FALSE, warning = FALSE}
 dams_to_points <- shape_dams %>%
   st_as_sf() %>% st_centroid() %>%
   mutate(id = 1:nrow(.)) %>%  dplyr::select(id) %>% 
@@ -370,15 +371,14 @@ plot
 
 ## Barriers data processing
 
-We use the custom `snap_to_river()` function to overlay dams with the river network.
+We use the custom `snap_to_river()` function to overlay dams with the river network. we use `st_distance()` to make sure the snapped dams are overlapping with the river network.
 
 ```{r dams processing 1, echo = TRUE, message = FALSE, warning = FALSE}
 dams_snapped <- snap_to_river(dams_to_points,
                               shape_river_simple %>% st_sf(),
                               max_dist = 1000)
 
-dams_snapped_reduced <-
-  dams_snapped[
+dams_snapped_reduced <- dams_snapped[
     st_contains(shape_river_simple %>% st_sf(), 
                 dams_snapped, prepared = FALSE)[[1]],]
 
@@ -388,7 +388,7 @@ st_distance(dams_snapped_reduced, shape_river_simple) %>% sum
 
 ## Barriers data processing
 
-If two or more dams are snapped to the same point, they are considered as one dam. This does not work with 
+If two or more dams are snapped to the same point, they are considered as one dam. 
 
 ```{r dams processing 2, echo = TRUE, message = FALSE, warning = FALSE}
 dams_snapped_reduced_joined <- dams_snapped_reduced %>%
@@ -410,7 +410,7 @@ dams_snapped_reduced_joined <- dams_snapped_reduced %>%
 
 ## Barriers data processing
 
-The custom function `headwaters_dam()` is useful for identifying dams that do not have an upstream reach and would not be contributing to fragmentation. Then dams are saved as a shapefile.
+The custom function `headwaters_dam()` is useful for identifying dams that do not have an upstream reach and would not be contributing to fragmentation.
 
 ```{r dams processing 3, echo = TRUE, message = FALSE, warning = FALSE}
 headwaters_checking <- headwaters_dam(dams_snapped_reduced_joined, shape_river_simple)
@@ -483,7 +483,7 @@ river_net_simplified <- lwgeom::st_split(shape_river_simple, network_links) %>%
 
 ## Integrating hydrographic and dams data
 
-We check with a plot
+We check with a plot. The visualized points will be the river graph edges.
 
 ```{r final river shapefile sliced plot, echo = TRUE, message = FALSE, warning = FALSE}
 plot <- ggplot() +
@@ -509,9 +509,12 @@ One last step: we extract the elevation for each river segment (its centroid) us
 ```{r extract elevation, echo = TRUE, message = FALSE, warning = FALSE}
 elevation <- elevatr::get_elev_raster(shape_basin, z = 8)
 
-reach_centroids <- river_net_simplified %>% st_as_sf() %>% st_centroid()
+reach_centroids <- river_net_simplified %>% 
+  st_as_sf() %>% 
+  st_centroid()
 
-river_net_simplified$elevation <- elevation %>% terra::extract(reach_centroids)
+river_net_simplified$elevation <- elevation %>% 
+  terra::extract(reach_centroids)
 
 ```
 
@@ -540,7 +543,7 @@ We see that there is only one component. This is not surprising because the file
 
 ## Troubleshooting
 
-If the function `multiple_confluences()` is used on a native file, many components are found. The shapefile can be plotted to identify where the weird components are located and to correct them (e.g. deleting them or snapping them)
+If the function `multiple_confluences()` is used on problematic data, many components are found. The shapefile can be plotted to identify where the weird components are located and to correct them (e.g. deleting them or snapping them)
 
 ```{r shp check 2, echo = TRUE, message = FALSE, warning = FALSE}
 example_broken <- st_read("data/example_broken_river/example_broken.shp", quiet = TRUE)
@@ -582,8 +585,9 @@ river_graph <- create_network(network_links, river_net_simplified, outlet)
 
 river_graph %>% 
   saveRDS("data/river_graph/river_graph.rds")
+
 river_net_simplified %>% 
-  st_write("data/river_graph/river_net_simplified.shp", delete_dsn = TRUE)
+  st_write("data/river_graph/river_net_simplified.shp", delete_dsn = TRUE, quiet = TRUE)
 
 ```
 
@@ -618,7 +622,8 @@ V(river_graph)$name <- as.character(V(river_graph)$name)
 ## Alternative ways of creating the graph
 
 -   Both the HydroBASINS and the HydroRIVERS have a built-in graph structure (fields NEXT_DOWN) that can be used to create the graph.
--   This structure oes not account for the presence of dams
+-   This structure does not account for the presence of dams.
+- It could be nevertheless useful for large scale analyses where only dams in the main channel of the subcatchment are considered.
 -   Sometmes we work with hydrographic data that are not as 'clean' as HydroSHEDS.
 
 
@@ -677,7 +682,7 @@ ggplot() +
 ```{r  graph plot centrality 5, echo = FALSE, message = FALSE, warning = FALSE}
 ggplot() +
     coord_fixed() + theme_void()+
-    ggspatial::layer_spatial(river_plot, aes(color = log10(cc_dir + 1)))+
+    ggspatial::layer_spatial(river_plot, aes(color = log10(cc_dir^0.01 + 1)))+
     scale_color_viridis(name = "Closeness (log10), out")+
     theme(legend.position = "bottom")
 ```

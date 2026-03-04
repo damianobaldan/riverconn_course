@@ -20,40 +20,40 @@ knitr::opts_chunk$set(echo = FALSE)
 
 ## What we will cover in this presentation
 
--   Why fragmentation is important for riverine metacommunities (alpha and beta diversity)
--   Example of application of `riverconn` indices to fish metacommunities in the Ebro basin
--   Generalized linear models for alpha diversity
--   Mantel test and multilinear regression for beta diversity
--   Generalized linear models for the local contribution to beta diversity (LCBD)
+-   Why fragmentation is important for riverine metacommunities (alpha and beta diversity).
+-   Example of application of `riverconn` indices to fish metacommunities in the Ebro basin.
+-   Generalized linear models for alpha diversity.
+-   Mantel test and multilinear regression for beta diversity.
+-   Generalized linear models for the local contribution to beta diversity (LCBD).
 
 
 ## Fragmentation and metacommunities
 
--   Metacommunity: a set of local communities linked by dispersal
--   Local communities are influenced by both local environmental conditions and regional dispersal processes
--   Mass effect (ME) archetype: high dispersal -> 'everything is everywhere'
--   Species sorting (SS) archetype: low dispersal -> high effect of local environment (filter)
--   Dispersal (connectivity) strength regulates between ME and SS
+-   Metacommunity: a set of local communities linked by dispersal.
+-   Local communities are influenced by both local environmental conditions and regional dispersal processes.
+-   Mass effect (ME) archetype: 'everything is everywhere'.
+-   Species sorting (SS) archetype: high effect of local environment (filter).
+-   Dispersal (connectivity) strength regulates between ME and SS.
 
 
 ## Fragmentation and metacommunities
 
--   In a landscape, central sites are more connected and peripherical sites are more isolated
--   We expect effect of centrality/isolation on alpha and beta diversity
--   River network have per se strong spatial structure
--   dams affect this spatial structure
--   `riverconn` indices can help quantifying this 'new' spatial structure
+-   In a landscape, central sites are more connected and peripherical sites are more isolated.
+-   We expect effect of centrality/isolation on alpha and beta diversity.
+-   River network have per se strong spatial structure.
+-   dams affect this spatial structure.
+-   `riverconn` indices can help quantifying this 'new' spatial structure.
 
 
 ## Which packages we will use
 
--   `dplyr` for data manipulation: helps building pipelines for easy-to-read data manipulation (loaded with the `tidyverse`)
--   `ggplot2` for data visualization: a bit painful, but easily integrates `sf` and `terra` objects for plotting (loaded with the `tidyverse`)
--   `vegan` for ecological analyses: provides functions for calculating diversity indices and performing Mantel tests
--   `MASS` for the negative binomial GLM 
--   `adespatial` for calculating beta diversity
--   `ecodist` for the Mantel test with multiple predictors
--   `betareg` and `StepBeta` for Generalized Linear Models with beta link function
+-   `dplyr` for data manipulation: helps building pipelines for easy-to-read data manipulation (loaded with the `tidyverse`).
+-   `ggplot2` for data visualization: a bit painful, but easily integrates `sf` and `terra` objects for plotting (loaded with the `tidyverse`).
+-   `vegan` for ecological analyses: provides functions for calculating diversity indices and performing Mantel tests.
+-   `MASS` for the negative binomial GLM.
+-   `adespatial` for calculating beta diversity.
+-   `ecodist` for the Mantel test with multiple predictors.
+-   `betareg` and `StepBeta` for Generalized Linear Models with beta link function.
 
 
 ## Which packages we will use
@@ -91,13 +91,6 @@ centr_mat <- read.table("data/metacomm_data/ebro_centr_mat.txt")
 dist_mat <- readRDS("data/metacomm_data/dist_mat_ebro.RDS") 
 dist_mat <- dist_mat[rownames(species_mat_pa), rownames(species_mat_pa)]
 
-# # species_mat_inv_pa  <- read.table("data/metacomm_data/ebro_species_mat_inv_pa.txt")
-# frag_mat <- read.table("data/metacomm_data/ebro_frag_mat.txt")
-# # frag_mat_c <- read.table("data/metacomm_data/ebro_frag_mat_c.txt")
-# beta <- readRDS("data/metacomm_data/ebro_beta_dist_mat.RDS")
-# centr_mat <- read.table("data/metacomm_data/ebro_centr_mat.txt")
-# LCBD_df <- read.table("data/metacomm_data/ebro_LCBD_df.txt")
-# dist_mat <- readRDS("data/metacomm_data/dist_mat_ebro.RDS")
 ```
 
 
@@ -149,7 +142,7 @@ plot <- ggplot() +  theme_minimal() +
 
 We read the sampling points shapefile and plot the species richness.
 
-```{r species data check 3 plot plot, echo = TRUE, message=FALSE, warning=FALSE}
+```{r species data check 3 plot plot, echo = FALSE, message=FALSE, warning=FALSE}
 plot
 ```
 
@@ -189,13 +182,15 @@ Finally, we also check the distance matrix (distances in meters).
 ```{r dist mat data check, echo = TRUE, message=FALSE, warning=FALSE}
 hist(dist_mat)
 ```
+
 ## The Ebro case study: input data
 
 We have all the data we need. We put all the predictors in a single data.frame. We logtransform fragmentation variables. We logit-transform land use variables. Finally, we scale all the variables. We drop a couple of variables that are highli correlated. 
 
 ```{r assembling predictors, echo = TRUE, message=FALSE, warning=FALSE}
 pred_mat_lm_full <- cbind(
-  env_mat %>% dplyr::select(elev, Dischrg) %>%  rename(size = Dischrg) %>%  dplyr::mutate(size = (size)^0.25),
+  env_mat %>% dplyr::select(elev, Dischrg) %>%  rename(size = Dischrg) %>%  
+    dplyr::mutate(size = (size)^0.25),
   env_mat %>% dplyr::select(AGR, UR, FR) %>% car::logit(),
   frag_mat %>% dplyr::select(index_us0.3, index_us0.6, index_us0.9) %>%
     dplyr::mutate(index_us0.3 = log10(index_us0.3),
@@ -204,7 +199,6 @@ pred_mat_lm_full <- cbind(
     rename_all(~stringr::str_replace(.,"index_","")),
   centr_mat %>% dplyr::select(BCdir, CCout) ) %>%
   mutate_if(is.numeric, ~(scale(.) %>% as.vector))
-
 cor_mat <- pred_mat_lm_full %>%  cor(method = "spearman")
 pred_mat_lm <- pred_mat_lm_full %>% dplyr::select(-us0.6, -FR)
 
@@ -266,13 +260,13 @@ plotmo::plotmo(lm_rich)
 
 Next we want to analyze what are the drivers of beta diversity. First we calculate the beta diversity matrix with `adespatial::beta.div()` function. We use the Sorensen indices, and we are interested in three components of the beta diversity: the total beta diversity (D), the richness difference (rich), and the replacement (repl), as they capture different community asssembly processes.
 
-```{r beta calculation,  echo=FALSE, results='hide',fig.keep='all'}
+```{r beta calculation,  echo=TRUE, results='hide',fig.keep='all'}
 beta <- beta.div.comp(species_mat_pa, coef = "S")
 names(beta)
 ```
 ## The Ebro case study: beta diversity
 
-We use a Mantel test (`ecodist::mantel()`) to check the influence of fragmentation on beta diversity. First we calculate distances between predictors. We also retain the lower triangle of the distance matrix for later use.
+We want to use a Mantel test (`ecodist::mantel()`) to check the influence of fragmentation on beta diversity. First we calculate distances between predictors. We also retain the lower triangle of the distance matrix for later use.
 
 ```{r beta predictors,  echo = TRUE, message=FALSE, warning=FALSE}
 dist_data <- cbind(
@@ -292,7 +286,7 @@ dist_mat_v <- dist_mat[lower.tri(dist_mat)]
 
 ## The Ebro case study: beta diversity
 
-Next, we use the Mantel test check the influence of fragmentation on beta diversity. We partial out the effect of distance. The tests are marginally significant.
+We use the Mantel test to check the influence of fragmentation on beta diversity. We partial out the effect of distance. The tests are marginally significant.
 
 ```{r beta mantel 1,  echo = TRUE, message=FALSE, warning=FALSE}
 ecodist::mantel(as.vector(beta$D) ~ dist_data$us0.9 + dist_mat_v, mrank = TRUE)

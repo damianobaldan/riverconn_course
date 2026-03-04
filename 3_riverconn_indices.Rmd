@@ -27,14 +27,14 @@ knitr::opts_chunk$set(echo = FALSE)
 
 ## Connectivity/fragmentation indices
 
-We define the Catchment Connectivity Index $CCI$ as the weighted sum of all dispersal probabilities between river reaches in our catchment.
+We define the Catchment Connectivity Index $CCI$ as the weighted sum of all dispersal probabilities between river segments (reaches) in a catchment.
 
 $$CCI = \sum_{i=1}^{n}\sum_{j=1}^{n}{ I_{ij}\frac{w_{i}w_{j}}{W^2}}$$
 where:
 
 -   $I_{ij}$ is the dispersal probability between river reaches $i$ and $j$;
--   $w_i$ and $w_j$ are the weights of the river reaches (e.g. their length, or their discharge, or available habitat);
--   $W$ is the total weight of the river network (e.g. total length, or total discharge, or available habitat).
+-   $w_i$ and $w_j$ are the weights of the river reaches (e.g. their length, or their volume, or available habitat);
+-   $W$ is the total weight of the river network (e.g. total length, or total volume, or available habitat).
 
 
 ## Connectivity/fragmentation indices
@@ -68,8 +68,8 @@ $$p_{m}^{eq} = p_{m}^{u}p_{m}^{d}$$
 If the directionality is important, we express $p_{m}^{eq}$ as the passability in the direction of interest:
 
 $$p_{m}^{eq} = \begin{cases} 
- p_{m}^{u} & \text{if m is crossed while moving upstream in the i to j path}\\
- p_{m}^{d} & \text{if m is crossed while moving downstream in the i to j path } x < 0
+ p_{m}^{u} & \text{if m is crossed when moving upstream in the i to j path}\\
+ p_{m}^{d} & \text{if m is crossed when moving downstream in the i to j path }
 \end{cases} $$
 
 ## Connectivity/fragmentation indices
@@ -131,10 +131,10 @@ Note that the Dendritic Connectivity Index for diadromous $DCId$ fish can be cal
 
 Barriers are prioritized using a leave-one-out approach. The importance of barrier $m$ is calculated as the difference between the connectivity of the catchment with and without barrier $m$:
 
-$$\dCCI_{m} = \frac{CCI - CCI_{-m}}{CCI} 100$$
+$$dCCI_{m} = \frac{CCI_{0} - CCI_{-m}}{CCI_{0}} 100$$
 where:
 
--   $CCI$ is the connectivity of the catchment with all barriers;
+-   $CCI_{0}$ is the connectivity of the catchment with all barriers;
 -   $CCI_{-m}$ is the connectivity of the catchment without barrier $m$
 
 
@@ -169,7 +169,8 @@ We keep using the Ebro as a case study. we load the `igraph` object and the rive
 ```{r network load, echo = TRUE, message=FALSE, warning=FALSE}
 river_graph <- read_rds('data/river_graph/river_graph.rds')
 
-river_net_simplified <- st_read("data/river_graph/river_net_simplified.shp", quiet = TRUE) %>% 
+river_net_simplified <- st_read("data/river_graph/river_net_simplified.shp", 
+                                quiet = TRUE) %>% 
   dplyr::mutate(name = as.character(NodeID))
 
 dams_shp <- st_read("data/dams_ebro/network_links.shp", quiet = TRUE) %>%
@@ -178,22 +179,33 @@ dams_shp <- st_read("data/dams_ebro/network_links.shp", quiet = TRUE) %>%
 
 outlet <- river_net_simplified$NodeID[river_net_simplified$DIST_DN_KM == 0 ]
 ```
+
 ## Data preprocessings
+
+We examine the river graph we generated in the previous lecture.
 
 ```{r network examine, echo = TRUE, message=FALSE, warning=FALSE}
 river_graph
+```
 
+## Data preprocessings
+
+Some attributes need to be adjusted.
+
+```{r network examine 2, echo = TRUE, message=FALSE, warning=FALSE}
 V(river_graph)$name <- as.character(V(river_graph)$name)
 river_graph <- delete_vertex_attr(river_graph, "LENGTH_KM")
 V(river_graph)$length = V(river_graph)$length/10000
 
 ```
 
+
 ## Data preprocessing
+
+We define two functions to to assign a habitat suitability index (HSI) to each node of the graph.
 
 -   `suit_fun_high()`: habitat suitability for high-altitude organisms
 -   `suit_fun_low()`: habitat suitability for low-altitude organisms
--   we use these functions to assign a habitat suitability index (HSI) to each node of the graph.
 
 ```{r hsi definition, echo = TRUE, message=FALSE, warning=FALSE}
 suit_fun_high <- function(x){dnorm(x, mean = 1500, sd = 500)*410*sqrt(3*pi)}
@@ -218,13 +230,11 @@ plot <- 1:10:2500 %>%
   ggplot() + 
   geom_line(aes(x = Elevation, y = HSI, color = Type))+
   theme_bw() + xlab("Elevation (m)") + ylab("Habitat Suitability Index (HSI)")
-
-
 ```
 
 ## Data preprocessing
 
-```{r hsi definition plot plot, echo = TRUE, message=FALSE, warning=FALSE}
+```{r hsi definition plot plot, echo = FALSE, message=FALSE, warning=FALSE}
 plot
 ```
 
@@ -249,7 +259,7 @@ index_calculation(graph = g,
 
 ## CCI with `riverconn`
  
-Now we calculate the same index, but using asymmetric dispersal. 
+We calculate the same index, but using asymmetric dispersal. 
 
 -   The index is higher because pass_u = 0.1 and pass_d = 0.8, while for the product is always used.
 -   Note that some arguments are omitted because the default values are used (see documentation).
@@ -261,7 +271,7 @@ index_calculation(g, dir_fragmentation_type = "asymmetric", B_ij_flag = FALSE )$
 ```
 ## CCI with `riverconn`
  
-Now we edit the passabilities. 
+We edit the passabilities. 
 
 -   We set the upstream passability to 0.5: $CCI$ increases.
 -   We set the upstream passability to 0.1: $CCI$ decreases.
@@ -632,7 +642,7 @@ head(updt_pass)
 
 ## Spatial patterns of dCCI
 
-We use the function `d_index_calculation()` to calculate the $\dCCI$ for each barrier. Here, we calculate the index with no dispersal, and pass_u = pass_d = 0.5  
+We use the function `d_index_calculation()` to calculate the $dCCI$ for each barrier. Here, we calculate the index with no dispersal, and pass_u = pass_d = 0.5  
 
 ```{r dcci plot 1 , echo = TRUE, message=FALSE, warning=FALSE}
 index_list <- list()
